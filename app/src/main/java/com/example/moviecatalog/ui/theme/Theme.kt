@@ -11,21 +11,49 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = CinemaNavyLight,
+    onPrimary = CinemaOnNavyDark,
+    primaryContainer = CinemaNavyContainerDark,
+    onPrimaryContainer = CinemaOnNavyContainerDark,
+    secondary = CinemaGoldLight,
+    onSecondary = CinemaOnGoldDark,
+    secondaryContainer = CinemaGoldContainerDark,
+    onSecondaryContainer = CinemaOnGoldContainerDark,
+    tertiary = CinemaRoseLight,
+    onTertiary = CinemaOnRoseDark,
+    tertiaryContainer = CinemaRoseContainerDark,
+    onTertiaryContainer = CinemaOnRoseContainerDark,
+    background = CinemaBackgroundDark,
+    surface = CinemaSurfaceDark,
+    surfaceContainerLow = CinemaSurfaceContainerLowDark,
+    surfaceVariant = CinemaSurfaceVariantDark,
+    outlineVariant = CinemaOutlineVariantDark
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary = CinemaNavy,
+    onPrimary = CinemaOnNavy,
+    primaryContainer = CinemaNavyContainer,
+    onPrimaryContainer = CinemaOnNavyContainer,
+    secondary = CinemaGold,
+    onSecondary = CinemaOnGold,
+    secondaryContainer = CinemaGoldContainer,
+    onSecondaryContainer = CinemaOnGoldContainer,
+    tertiary = CinemaRose,
+    onTertiary = CinemaOnRose,
+    tertiaryContainer = CinemaRoseContainer,
+    onTertiaryContainer = CinemaOnRoseContainer,
+    background = CinemaBackgroundLight,
+    surface = CinemaSurfaceLight,
+    surfaceContainerLow = CinemaSurfaceContainerLowLight,
+    surfaceVariant = CinemaSurfaceVariantLight,
+    outlineVariant = CinemaOutlineVariantLight
 )
 
 @Composable
 fun MovieCatalogTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -41,6 +69,7 @@ fun MovieCatalogTheme(
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
+        shapes = MovieCatalogShapes,
         content = content
     )
 }
