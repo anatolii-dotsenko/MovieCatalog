@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.moviecatalog.MovieCatalogApp
+import com.example.moviecatalog.core.navigation.INavigationService
 import com.example.moviecatalog.data.repository.MovieRepository
 import com.example.moviecatalog.domain.model.Movie
 import kotlinx.coroutines.CancellationException
@@ -23,11 +24,13 @@ data class CatalogUiState(
     val errorMessage: String? = null,
     val nextPageToken: String? = null,
     val endReached: Boolean = false,
-    val currentPage: Int = 0
+    val currentPage: Int = 0,
+    val selectedMovieId: String? = null
 )
 
 class CatalogViewModel(
-    private val repository: MovieRepository
+    private val repository: MovieRepository,
+    private val navigationService: INavigationService
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CatalogUiState())
@@ -35,6 +38,12 @@ class CatalogViewModel(
 
     init {
         loadInitial()
+    }
+
+    fun onMovieClick(movie: Movie) {
+        _uiState.update { it.copy(selectedMovieId = movie.id) }
+        navigationService.navigateToDetails(movie.id)
+        _uiState.update { it.copy(selectedMovieId = null) }
     }
 
     fun loadInitial() {
@@ -109,7 +118,10 @@ class CatalogViewModel(
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as MovieCatalogApp
-                CatalogViewModel(app.movieRepository)
+                CatalogViewModel(
+                    repository = app.movieRepository,
+                    navigationService = app.navigationService
+                )
             }
         }
     }

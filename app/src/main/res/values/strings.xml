@@ -1,8 +1,20 @@
 <resources>
     <string name="app_name">MovieCatalog</string>
     <string name="catalog_title">Каталог фільмів</string>
+    <string name="details_title">Деталі фільму</string>
+    <string name="genre_title_format">Жанр: %1$s</string>
     <string name="catalog_header_format">Показано фільмів: %1$d • Сторінок: %2$d</string>
     <string name="year_format">Рік: %1$d</string>
     <string name="rating_format">%1$.1f / 10</string>
     <string name="genres_format">Жанри: %1$s</string>
+    <string name="original_title_format">Оригінальна назва: %1$s</string>
+    <string name="runtime_format">%1$d хв</string>
+    <string name="votes_format">%1$,d оцінок</string>
+    <string name="director_label">Режисер</string>
+    <string name="cast_label">У головних ролях</string>
+    <string name="country_label">Країна</string>
+    <string name="plot_label">Опис сюжету</string>
+    <string name="genres_label">Жанри (натисніть для перегляду категорії)</string>
+    <string name="back_to_list">Повернутися до списку</string>
+    <string name="no_genre_movies">Немає фільмів у жанрі «%1$s»</string>
 </resources>

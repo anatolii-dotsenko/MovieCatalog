@@ -7,7 +7,13 @@ data class Movie(
     val rating: Double?,
     val posterUrl: String?,
     val plot: String,
-    val genres: List<String> = emptyList()
+    val genres: List<String> = emptyList(),
+    val originalTitle: String? = null,
+    val runtimeMinutes: Int? = null,
+    val voteCount: Int? = null,
+    val director: String? = null,
+    val cast: List<String> = emptyList(),
+    val country: String? = null
 )
 
 data class MoviePage(

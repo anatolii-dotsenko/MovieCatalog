@@ -56,6 +56,7 @@ fun CatalogScreen(
         state = state,
         onRetryInitial = viewModel::loadInitial,
         onLoadMore = viewModel::loadMore,
+        onMovieClick = viewModel::onMovieClick,
         modifier = modifier
     )
 }
@@ -65,6 +66,7 @@ fun CatalogContent(
     state: CatalogUiState,
     onRetryInitial: () -> Unit,
     onLoadMore: () -> Unit,
+    onMovieClick: (Movie) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val configuration = LocalConfiguration.current
@@ -153,7 +155,8 @@ fun CatalogContent(
                 ) { movie ->
                     MovieCard(
                         movie = movie,
-                        compact = isLandscape
+                        compact = isLandscape,
+                        onClick = { onMovieClick(movie) }
                     )
                 }
 
@@ -262,7 +265,8 @@ private fun CatalogPortraitPreview() {
         CatalogContent(
             state = CatalogUiState(movies = previewMovies, currentPage = 1),
             onRetryInitial = {},
-            onLoadMore = {}
+            onLoadMore = {},
+            onMovieClick = {}
         )
     }
 }
@@ -274,7 +278,8 @@ private fun CatalogLandscapePreview() {
         CatalogContent(
             state = CatalogUiState(movies = previewMovies, currentPage = 1),
             onRetryInitial = {},
-            onLoadMore = {}
+            onLoadMore = {},
+            onMovieClick = {}
         )
     }
 }
