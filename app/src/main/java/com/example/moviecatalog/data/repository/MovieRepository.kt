@@ -3,11 +3,21 @@ package com.example.moviecatalog.data.repository
 import com.example.moviecatalog.data.remote.IMovieApiService
 import com.example.moviecatalog.domain.model.Movie
 import com.example.moviecatalog.domain.model.MoviePage
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 class MovieRepository(
     private val apiService: IMovieApiService
 ) {
     private val cache = LinkedHashMap<String, Movie>()
+
+    private val _favoriteIds = MutableStateFlow<Set<String>>(emptySet())
+    val favoriteIds: StateFlow<Set<String>> = _favoriteIds.asStateFlow()
+
+    private val _favoriteMovies = MutableStateFlow<List<Movie>>(emptyList())
+    val favoriteMovies: StateFlow<List<Movie>> = _favoriteMovies.asStateFlow()
 
     suspend fun fetchMoviesPage(pageToken: String? = null): MoviePage {
         val page = apiService.fetchMoviesPage(pageToken)
@@ -37,6 +47,11 @@ class MovieRepository(
             synchronized(cache) {
                 cache[movieId] = merged
             }
+            if (movieId in _favoriteIds.value) {
+                _favoriteMovies.update { list ->
+                    list.map { if (it.id == movieId) merged else it }
+                }
+            }
         }
         return merged
     }
@@ -50,6 +65,28 @@ class MovieRepository(
             cache.values.filter { movie ->
                 movie.genres.any { it.equals(genre, ignoreCase = true) }
             }
+        }
+    }
+
+    fun addToFavorites(movie: Movie) {
+        if (movie.id in _favoriteIds.value) return
+        _favoriteIds.update { it + movie.id }
+        _favoriteMovies.update { current ->
+            if (current.any { it.id == movie.id }) current else current + movie
+        }
+    }
+
+    fun removeFromFavorites(movieId: String) {
+        if (movieId !in _favoriteIds.value) return
+        _favoriteIds.update { it - movieId }
+        _favoriteMovies.update { current -> current.filterNot { it.id == movieId } }
+    }
+
+    fun toggleFavorite(movie: Movie) {
+        if (movie.id in _favoriteIds.value) {
+            removeFromFavorites(movie.id)
+        } else {
+            addToFavorites(movie)
         }
     }
 }

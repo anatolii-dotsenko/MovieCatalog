@@ -5,7 +5,9 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -15,13 +17,16 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,16 +38,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.CachePolicy
@@ -53,8 +62,135 @@ import com.example.moviecatalog.ui.theme.MovieCatalogTheme
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 private val CubicOutEasing = CubicBezierEasing(0.22f, 1.0f, 0.36f, 1.0f)
+
+/**
+ * Swipe-to-reveal wrapper for [MovieCard] (analog of MAUI SwipeView + LeftItems).
+ * Swiping right reveals the action panel without triggering [onCardClick].
+ */
+@Composable
+fun SwipeableMovieCard(
+    movie: Movie,
+    isFavorite: Boolean,
+    isFavoritesMode: Boolean,
+    onCardClick: () -> Unit,
+    onSwipeAction: (Movie) -> Unit,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+    shouldAnimateAppear: Boolean = false,
+    appearDelayMillis: Int = 50,
+    onAppearAnimationConsumed: (() -> Unit)? = null
+) {
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    val revealWidth = 104.dp
+    val revealWidthPx = with(density) { revealWidth.toPx() }
+    val offsetX = remember(movie.id, isFavoritesMode) { Animatable(0f) }
+
+    val actionBackgroundColor = if (isFavoritesMode) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    val actionContentColor = if (isFavoritesMode) {
+        MaterialTheme.colorScheme.onError
+    } else {
+        MaterialTheme.colorScheme.onPrimary
+    }
+    val actionIcon = if (isFavoritesMode) Icons.Default.Delete else Icons.Default.Star
+    val actionLabel = stringResource(
+        if (isFavoritesMode) R.string.swipe_delete_favorite else R.string.swipe_add_favorite
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+    ) {
+        Row(
+            modifier = Modifier
+                .matchParentSize()
+                .background(actionBackgroundColor)
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(revealWidth)
+                    .fillMaxHeight()
+                    .clickable(enabled = offsetX.value > 2f) {
+                        scope.launch {
+                            offsetX.animateTo(0f, animationSpec = tween(180))
+                            onSwipeAction(movie)
+                        }
+                    }
+                    .padding(horizontal = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = actionIcon,
+                    contentDescription = actionLabel,
+                    tint = actionContentColor,
+                    modifier = Modifier.size(26.dp)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = actionLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = actionContentColor
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .pointerInput(movie.id, isFavoritesMode) {
+                    detectHorizontalDragGestures(
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            scope.launch {
+                                val next = (offsetX.value + dragAmount).coerceIn(0f, revealWidthPx)
+                                offsetX.snapTo(next)
+                            }
+                        },
+                        onDragEnd = {
+                            scope.launch {
+                                val target = if (offsetX.value >= revealWidthPx * 0.45f) {
+                                    revealWidthPx
+                                } else {
+                                    0f
+                                }
+                                offsetX.animateTo(target, animationSpec = tween(200))
+                            }
+                        },
+                        onDragCancel = {
+                            scope.launch {
+                                offsetX.animateTo(0f, animationSpec = tween(200))
+                            }
+                        }
+                    )
+                }
+        ) {
+            MovieCard(
+                movie = movie,
+                compact = compact,
+                isFavorite = isFavorite,
+                shouldAnimateAppear = shouldAnimateAppear,
+                appearDelayMillis = appearDelayMillis,
+                onAppearAnimationConsumed = onAppearAnimationConsumed,
+                onClick = {
+                    if (offsetX.value > 2f) {
+                        scope.launch { offsetX.animateTo(0f, animationSpec = tween(180)) }
+                    } else {
+                        onCardClick()
+                    }
+                }
+            )
+        }
+    }
+}
 
 /**
  * Reusable movie list item component configured via [movie].
@@ -66,6 +202,7 @@ fun MovieCard(
     movie: Movie,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
+    isFavorite: Boolean = false,
     shouldAnimateAppear: Boolean = false,
     appearDelayMillis: Int = 50,
     onAppearAnimationConsumed: (() -> Unit)? = null,
@@ -229,6 +366,17 @@ fun MovieCard(
                         )
                     }
                 }
+
+                if (isFavorite) {
+                    Text(
+                        text = stringResource(R.string.favorite_badge),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.metadataBadge(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        )
+                    )
+                }
             }
 
             if (movie.genres.isNotEmpty()) {
@@ -295,7 +443,7 @@ private val sampleMovie = Movie(
 private fun MovieCardLightPreview() {
     MovieCatalogTheme(darkTheme = false) {
         Box(modifier = Modifier.padding(12.dp)) {
-            MovieCard(movie = sampleMovie)
+            MovieCard(movie = sampleMovie, isFavorite = true)
         }
     }
 }
@@ -305,7 +453,7 @@ private fun MovieCardLightPreview() {
 private fun MovieCardDarkPreview() {
     MovieCatalogTheme(darkTheme = true) {
         Box(modifier = Modifier.padding(12.dp)) {
-            MovieCard(movie = sampleMovie)
+            MovieCard(movie = sampleMovie, isFavorite = true)
         }
     }
 }
@@ -315,7 +463,7 @@ private fun MovieCardDarkPreview() {
 private fun MovieCardCompactPreview() {
     MovieCatalogTheme(darkTheme = false) {
         Box(modifier = Modifier.padding(12.dp)) {
-            MovieCard(movie = sampleMovie, compact = true)
+            MovieCard(movie = sampleMovie, compact = true, isFavorite = false)
         }
     }
 }

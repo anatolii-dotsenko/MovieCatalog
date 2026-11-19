@@ -4,6 +4,8 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,16 +23,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -79,6 +85,8 @@ fun DetailsScreen(
         onRetry = viewModel::retry,
         onBackClick = viewModel::onBackClick,
         onGenreClick = viewModel::onGenreClick,
+        onRemoveFromFavorites = viewModel::onRemoveFromFavorites,
+        onToggleFavorite = viewModel::onToggleFavorite,
         modifier = modifier
     )
 }
@@ -90,6 +98,8 @@ fun DetailsContent(
     onRetry: () -> Unit,
     onBackClick: () -> Unit,
     onGenreClick: (String) -> Unit,
+    onRemoveFromFavorites: () -> Unit,
+    onToggleFavorite: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     when {
@@ -133,10 +143,29 @@ fun DetailsContent(
         else -> {
             val movie = state.movie
             val context = LocalContext.current
+            val swipeBackThresholdPx = with(LocalDensity.current) { 96.dp.toPx() }
 
             Column(
                 modifier = modifier
                     .fillMaxSize()
+                    .pointerInput(movie.id) {
+                        var totalRightDrag = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { totalRightDrag = 0f },
+                            onHorizontalDrag = { _, dragAmount ->
+                                if (dragAmount > 0f) {
+                                    totalRightDrag += dragAmount
+                                } else {
+                                    totalRightDrag = 0f
+                                }
+                            },
+                            onDragEnd = {
+                                if (totalRightDrag >= swipeBackThresholdPx) {
+                                    onBackClick()
+                                }
+                            }
+                        )
+                    }
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -153,7 +182,12 @@ fun DetailsContent(
                             modifier = Modifier
                                 .width(130.dp)
                                 .height(195.dp)
-                                .posterFrame(),
+                                .posterFrame()
+                                .pointerInput(movie.id) {
+                                    detectTapGestures(
+                                        onDoubleTap = { onToggleFavorite() }
+                                    )
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             SubcomposeAsyncImage(
@@ -192,6 +226,25 @@ fun DetailsContent(
                                     }
                                 }
                             )
+
+                            if (state.isFavorite) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    shape = MaterialTheme.shapes.extraSmall,
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = stringResource(R.string.favorite_badge),
+                                        modifier = Modifier
+                                            .padding(4.dp)
+                                            .size(16.dp)
+                                    )
+                                }
+                            }
                         }
 
                         Column(
@@ -268,6 +321,12 @@ fun DetailsContent(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+
+                            Text(
+                                text = stringResource(R.string.double_tap_poster_hint),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
                 }
@@ -351,16 +410,48 @@ fun DetailsContent(
                 }
 
                 StaggeredReveal(itemKey = movie.id, delayMillis = 260) {
-                    Button(
-                        onClick = onBackClick,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = null
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.back_to_list))
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (state.isFavorite) {
+                            Button(
+                                onClick = onRemoveFromFavorites,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = null
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(stringResource(R.string.remove_from_favorites))
+                            }
+                        } else {
+                            OutlinedButton(
+                                onClick = onToggleFavorite,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = null
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(stringResource(R.string.add_to_favorites))
+                            }
+                        }
+
+                        Button(
+                            onClick = onBackClick,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = null
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.back_to_list))
+                        }
                     }
                 }
             }
@@ -434,6 +525,7 @@ private fun DetailsScreenPreview() {
         DetailsContent(
             state = DetailsUiState(
                 isLoading = false,
+                isFavorite = true,
                 movie = Movie(
                     id = "tt6751668",
                     title = "Parasite",
@@ -452,7 +544,9 @@ private fun DetailsScreenPreview() {
             ),
             onRetry = {},
             onBackClick = {},
-            onGenreClick = {}
+            onGenreClick = {},
+            onRemoveFromFavorites = {},
+            onToggleFavorite = {}
         )
     }
 }

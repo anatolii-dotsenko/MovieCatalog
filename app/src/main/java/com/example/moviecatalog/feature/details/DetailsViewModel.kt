@@ -20,7 +20,8 @@ import kotlinx.coroutines.launch
 data class DetailsUiState(
     val movie: Movie? = null,
     val isLoading: Boolean = true,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val isFavorite: Boolean = false
 )
 
 class DetailsViewModel(
@@ -29,10 +30,17 @@ class DetailsViewModel(
     private val navigationService: INavigationService
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(DetailsUiState())
+    private val _uiState = MutableStateFlow(
+        DetailsUiState(isFavorite = movieId in repository.favoriteIds.value)
+    )
     val uiState: StateFlow<DetailsUiState> = _uiState.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            repository.favoriteIds.collect { ids ->
+                _uiState.update { it.copy(isFavorite = movieId in ids) }
+            }
+        }
         loadDetails()
     }
 
@@ -46,6 +54,14 @@ class DetailsViewModel(
 
     fun onGenreClick(genre: String) {
         navigationService.navigateToGenre(genre)
+    }
+
+    fun onRemoveFromFavorites() {
+        repository.removeFromFavorites(movieId)
+    }
+
+    fun onToggleFavorite() {
+        _uiState.value.movie?.let(repository::toggleFavorite)
     }
 
     private fun loadDetails() {

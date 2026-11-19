@@ -28,7 +28,9 @@ data class CatalogUiState(
     val nextPageToken: String? = null,
     val endReached: Boolean = false,
     val currentPage: Int = 0,
-    val selectedMovieId: String? = null
+    val selectedMovieId: String? = null,
+    val isFavoritesMode: Boolean = false,
+    val favoriteIds: Set<String> = emptySet()
 )
 
 class CatalogViewModel(
@@ -44,6 +46,24 @@ class CatalogViewModel(
     val uiState: StateFlow<CatalogUiState> = _uiState.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            repository.favoriteIds.collect { ids ->
+                _uiState.update { it.copy(favoriteIds = ids) }
+            }
+        }
+        viewModelScope.launch {
+            repository.favoriteMovies.collect { favorites ->
+                if (_uiState.value.isFavoritesMode) {
+                    _uiState.update {
+                        it.copy(
+                            movies = favorites,
+                            totalLoadedInBuffer = favorites.size,
+                            endReached = true
+                        )
+                    }
+                }
+            }
+        }
         loadInitial()
     }
 
@@ -59,6 +79,42 @@ class CatalogViewModel(
         _uiState.update { it.copy(selectedMovieId = null) }
     }
 
+    fun toggleFavoritesMode() {
+        val nextFavoritesMode = !_uiState.value.isFavoritesMode
+        if (nextFavoritesMode) {
+            val favorites = repository.favoriteMovies.value
+            _uiState.update {
+                it.copy(
+                    isFavoritesMode = true,
+                    movies = favorites,
+                    totalLoadedInBuffer = favorites.size,
+                    isLoadingMore = false,
+                    errorMessage = null,
+                    endReached = true
+                )
+            }
+        } else {
+            val visibleSnapshot = titlesLoaded.take(visibleCount)
+            _uiState.update {
+                it.copy(
+                    isFavoritesMode = false,
+                    movies = visibleSnapshot,
+                    totalLoadedInBuffer = titlesLoaded.size,
+                    errorMessage = null,
+                    endReached = visibleCount >= titlesLoaded.size && it.nextPageToken == null
+                )
+            }
+        }
+    }
+
+    fun manageFavoriteBySwipe(movie: Movie) {
+        if (_uiState.value.isFavoritesMode) {
+            repository.removeFromFavorites(movie.id)
+        } else {
+            repository.addToFavorites(movie)
+        }
+    }
+
     fun loadInitial() {
         viewModelScope.launch {
             titlesLoaded.clear()
@@ -67,12 +123,12 @@ class CatalogViewModel(
 
             _uiState.update {
                 it.copy(
-                    movies = emptyList(),
-                    totalLoadedInBuffer = 0,
-                    isInitialLoading = true,
+                    movies = if (it.isFavoritesMode) repository.favoriteMovies.value else emptyList(),
+                    totalLoadedInBuffer = if (it.isFavoritesMode) repository.favoriteMovies.value.size else 0,
+                    isInitialLoading = !it.isFavoritesMode,
                     isLoadingMore = false,
                     errorMessage = null,
-                    endReached = false,
+                    endReached = it.isFavoritesMode,
                     currentPage = 0
                 )
             }
@@ -82,15 +138,23 @@ class CatalogViewModel(
                 visibleCount = minOf(VISIBLE_CHUNK_SIZE, titlesLoaded.size)
                 val visibleSnapshot = titlesLoaded.take(visibleCount)
 
-                _uiState.update {
-                    it.copy(
-                        movies = visibleSnapshot,
-                        totalLoadedInBuffer = titlesLoaded.size,
-                        isInitialLoading = false,
-                        nextPageToken = page.nextPageToken,
-                        endReached = visibleCount >= titlesLoaded.size && page.nextPageToken == null,
-                        currentPage = if (titlesLoaded.isNotEmpty()) 1 else 0
-                    )
+                _uiState.update { state ->
+                    if (state.isFavoritesMode) {
+                        state.copy(
+                            isInitialLoading = false,
+                            nextPageToken = page.nextPageToken,
+                            currentPage = if (titlesLoaded.isNotEmpty()) 1 else 0
+                        )
+                    } else {
+                        state.copy(
+                            movies = visibleSnapshot,
+                            totalLoadedInBuffer = titlesLoaded.size,
+                            isInitialLoading = false,
+                            nextPageToken = page.nextPageToken,
+                            endReached = visibleCount >= titlesLoaded.size && page.nextPageToken == null,
+                            currentPage = if (titlesLoaded.isNotEmpty()) 1 else 0
+                        )
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -107,7 +171,7 @@ class CatalogViewModel(
 
     fun loadMore() {
         val current = _uiState.value
-        if (current.isInitialLoading || current.isLoadingMore || current.endReached) {
+        if (current.isFavoritesMode || current.isInitialLoading || current.isLoadingMore || current.endReached) {
             return
         }
 
@@ -118,12 +182,16 @@ class CatalogViewModel(
                 val remainingBuffered = titlesLoaded.size - visibleCount
                 val shouldPrefetch = remainingBuffered < VISIBLE_CHUNK_SIZE && current.nextPageToken != null
 
-                _uiState.update {
-                    it.copy(
-                        movies = visibleSnapshot,
-                        totalLoadedInBuffer = titlesLoaded.size,
-                        endReached = visibleCount >= titlesLoaded.size && it.nextPageToken == null
-                    )
+                _uiState.update { state ->
+                    if (state.isFavoritesMode) {
+                        state
+                    } else {
+                        state.copy(
+                            movies = visibleSnapshot,
+                            totalLoadedInBuffer = titlesLoaded.size,
+                            endReached = visibleCount >= titlesLoaded.size && state.nextPageToken == null
+                        )
+                    }
                 }
 
                 if (shouldPrefetch) {
@@ -147,14 +215,22 @@ class CatalogViewModel(
             val visibleSnapshot = titlesLoaded.take(visibleCount)
 
             _uiState.update { state ->
-                state.copy(
-                    movies = visibleSnapshot,
-                    totalLoadedInBuffer = titlesLoaded.size,
-                    isLoadingMore = false,
-                    nextPageToken = page.nextPageToken,
-                    endReached = visibleCount >= titlesLoaded.size && page.nextPageToken == null,
-                    currentPage = state.currentPage + 1
-                )
+                if (state.isFavoritesMode) {
+                    state.copy(
+                        isLoadingMore = false,
+                        nextPageToken = page.nextPageToken,
+                        currentPage = state.currentPage + 1
+                    )
+                } else {
+                    state.copy(
+                        movies = visibleSnapshot,
+                        totalLoadedInBuffer = titlesLoaded.size,
+                        isLoadingMore = false,
+                        nextPageToken = page.nextPageToken,
+                        endReached = visibleCount >= titlesLoaded.size && page.nextPageToken == null,
+                        currentPage = state.currentPage + 1
+                    )
+                }
             }
         } catch (e: CancellationException) {
             throw e
