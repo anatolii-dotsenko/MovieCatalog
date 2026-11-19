@@ -1,6 +1,11 @@
 package com.example.moviecatalog.core.navigation
 
 import android.net.Uri
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -97,7 +102,23 @@ fun MovieCatalogNavHost(
         NavHost(
             navController = navController,
             startDestination = Routes.CATALOG,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = {
+                fadeIn(animationSpec = tween(260)) +
+                    slideInHorizontally(animationSpec = tween(260)) { fullWidth -> fullWidth / 5 }
+            },
+            exitTransition = {
+                fadeOut(animationSpec = tween(200)) +
+                    slideOutHorizontally(animationSpec = tween(200)) { fullWidth -> -fullWidth / 8 }
+            },
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(240)) +
+                    slideInHorizontally(animationSpec = tween(240)) { fullWidth -> -fullWidth / 8 }
+            },
+            popExitTransition = {
+                fadeOut(animationSpec = tween(240)) +
+                    slideOutHorizontally(animationSpec = tween(240)) { fullWidth -> fullWidth / 5 }
+            }
         ) {
             composable(Routes.CATALOG) {
                 CatalogScreen()

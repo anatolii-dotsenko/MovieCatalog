@@ -1,5 +1,8 @@
 package com.example.moviecatalog.domain.model
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class Movie(
     val id: String,
     val title: String,
@@ -16,6 +19,7 @@ data class Movie(
     val country: String? = null
 )
 
+@Immutable
 data class MoviePage(
     val movies: List<Movie>,
     val nextPageToken: String?

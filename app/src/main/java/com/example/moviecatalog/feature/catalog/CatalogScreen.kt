@@ -1,6 +1,12 @@
 package com.example.moviecatalog.feature.catalog
 
 import android.content.res.Configuration
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
@@ -30,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +64,8 @@ fun CatalogScreen(
         onRetryInitial = viewModel::loadInitial,
         onLoadMore = viewModel::loadMore,
         onMovieClick = viewModel::onMovieClick,
+        shouldAnimateMovie = viewModel::shouldAnimateItem,
+        onMovieAnimated = viewModel::markItemAnimated,
         modifier = modifier
     )
 }
@@ -67,14 +76,22 @@ fun CatalogContent(
     onRetryInitial: () -> Unit,
     onLoadMore: () -> Unit,
     onMovieClick: (Movie) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    shouldAnimateMovie: (String) -> Boolean = { false },
+    onMovieAnimated: (String) -> Unit = {}
 ) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val gridColumns = if (isLandscape) GridCells.Fixed(2) else GridCells.Fixed(1)
     val gridState = rememberLazyGridState()
 
-    LaunchedEffect(gridState, state.movies.size, state.isInitialLoading, state.isLoadingMore, state.endReached) {
+    LaunchedEffect(
+        gridState,
+        state.movies.size,
+        state.isInitialLoading,
+        state.isLoadingMore,
+        state.endReached
+    ) {
         snapshotFlow {
             val layoutInfo = gridState.layoutInfo
             val totalItems = layoutInfo.totalItemsCount
@@ -82,7 +99,7 @@ fun CatalogContent(
             lastVisibleIndex to totalItems
         }.collect { (lastVisibleIndex, totalItems) ->
             if (totalItems > 0 &&
-                lastVisibleIndex >= totalItems - 4 &&
+                lastVisibleIndex >= totalItems - 3 &&
                 !state.isInitialLoading &&
                 !state.isLoadingMore &&
                 !state.endReached
@@ -142,74 +159,103 @@ fun CatalogContent(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = modifier.fillMaxSize()
             ) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    CatalogSummaryHeader(
-                        loadedCount = state.movies.size,
-                        currentPage = state.currentPage
-                    )
+                item(
+                    key = "summary_header",
+                    contentType = "header",
+                    span = { GridItemSpan(maxLineSpan) }
+                ) {
+                    AnimatedVisibility(
+                        visible = state.movies.isNotEmpty(),
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        CatalogSummaryHeader(
+                            visibleCount = state.movies.size,
+                            bufferCount = maxOf(state.movies.size, state.totalLoadedInBuffer),
+                            currentPage = state.currentPage
+                        )
+                    }
                 }
 
-                items(
+                itemsIndexed(
                     items = state.movies,
-                    key = { it.id }
-                ) { movie ->
+                    key = { _, movie -> movie.id },
+                    contentType = { _, _ -> "movie_card" }
+                ) { index, movie ->
+                    val shouldAnimate = remember(movie.id) { shouldAnimateMovie(movie.id) }
                     MovieCard(
                         movie = movie,
                         compact = isLandscape,
-                        onClick = { onMovieClick(movie) }
+                        shouldAnimateAppear = shouldAnimate,
+                        appearDelayMillis = (index % 6) * 50,
+                        onAppearAnimationConsumed = { onMovieAnimated(movie.id) },
+                        onClick = { onMovieClick(movie) },
+                        modifier = Modifier.animateItem()
                     )
                 }
 
-                if (state.isLoadingMore) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
+                item(
+                    key = "catalog_footer",
+                    contentType = "footer",
+                    span = { GridItemSpan(maxLineSpan) }
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateContentSize()
+                    ) {
+                        AnimatedVisibility(
+                            visible = state.isLoadingMore,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
                         ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(22.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "Довантаження фільмів...",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                } else if (state.errorMessage != null) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = state.errorMessage,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            OutlinedButton(onClick = onLoadMore) {
-                                Text("Повторити довантаження")
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "Довантаження фільмів...",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
                             }
                         }
-                    }
-                } else if (state.endReached && state.movies.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            text = "Усі доступні фільми завантажено",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp)
-                        )
+
+                        if (!state.isLoadingMore && state.errorMessage != null) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = state.errorMessage,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                OutlinedButton(onClick = onLoadMore) {
+                                    Text("Повторити довантаження")
+                                }
+                            }
+                        } else if (!state.isLoadingMore && state.endReached && state.movies.isNotEmpty()) {
+                            Text(
+                                text = "Усі доступні фільми завантажено",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -219,7 +265,8 @@ fun CatalogContent(
 
 @Composable
 private fun CatalogSummaryHeader(
-    loadedCount: Int,
+    visibleCount: Int,
+    bufferCount: Int,
     currentPage: Int,
     modifier: Modifier = Modifier
 ) {
@@ -227,10 +274,17 @@ private fun CatalogSummaryHeader(
         color = MaterialTheme.colorScheme.primaryContainer,
         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         shape = MaterialTheme.shapes.small,
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier
+            .fillMaxWidth()
+            .animateContentSize()
     ) {
         Text(
-            text = stringResource(R.string.catalog_header_format, loadedCount, currentPage),
+            text = stringResource(
+                R.string.catalog_header_buffer_format,
+                visibleCount,
+                bufferCount,
+                currentPage
+            ),
             style = MaterialTheme.typography.labelLarge,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
         )
@@ -263,7 +317,7 @@ private val previewMovies = listOf(
 private fun CatalogPortraitPreview() {
     MovieCatalogTheme {
         CatalogContent(
-            state = CatalogUiState(movies = previewMovies, currentPage = 1),
+            state = CatalogUiState(movies = previewMovies, totalLoadedInBuffer = 8, currentPage = 1),
             onRetryInitial = {},
             onLoadMore = {},
             onMovieClick = {}
@@ -276,7 +330,7 @@ private fun CatalogPortraitPreview() {
 private fun CatalogLandscapePreview() {
     MovieCatalogTheme {
         CatalogContent(
-            state = CatalogUiState(movies = previewMovies, currentPage = 1),
+            state = CatalogUiState(movies = previewMovies, totalLoadedInBuffer = 8, currentPage = 1),
             onRetryInitial = {},
             onLoadMore = {},
             onMovieClick = {}

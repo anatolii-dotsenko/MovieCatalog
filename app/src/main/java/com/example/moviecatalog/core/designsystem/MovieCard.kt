@@ -1,6 +1,13 @@
 package com.example.moviecatalog.core.designsystem
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,10 +29,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -36,10 +50,15 @@ import coil.request.ImageRequest
 import com.example.moviecatalog.R
 import com.example.moviecatalog.domain.model.Movie
 import com.example.moviecatalog.ui.theme.MovieCatalogTheme
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+private val CubicOutEasing = CubicBezierEasing(0.22f, 1.0f, 0.36f, 1.0f)
 
 /**
  * Reusable movie list item component configured via [movie].
- * Serves as the Compose equivalent of a MAUI ContentView with a BindableProperty.
+ * Includes draw-phase appear animation (alpha + vertical slide) and interactive press scale.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -47,19 +66,80 @@ fun MovieCard(
     movie: Movie,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
+    shouldAnimateAppear: Boolean = false,
+    appearDelayMillis: Int = 50,
+    onAppearAnimationConsumed: (() -> Unit)? = null,
     onClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
+
     val posterWidth = if (compact) 78.dp else 96.dp
     val posterHeight = if (compact) 116.dp else 144.dp
+    val posterWidthPx = with(density) { posterWidth.roundToPx() }
+    val posterHeightPx = with(density) { posterHeight.roundToPx() }
     val cardPadding = if (compact) 10.dp else 12.dp
     val plotMaxLines = if (compact) 2 else 3
 
+    val startOffsetPx = with(density) { 40.dp.toPx() }
+    val alpha = remember(movie.id) { Animatable(if (shouldAnimateAppear) 0f else 1f) }
+    val offsetY = remember(movie.id) { Animatable(if (shouldAnimateAppear) startOffsetPx else 0f) }
+    var hasStartedAnimation by remember(movie.id) { mutableStateOf(false) }
+
+    LaunchedEffect(movie.id) {
+        if (shouldAnimateAppear && !hasStartedAnimation) {
+            hasStartedAnimation = true
+            onAppearAnimationConsumed?.invoke()
+            if (appearDelayMillis > 0) {
+                delay(appearDelayMillis.toLong())
+            }
+            coroutineScope {
+                launch {
+                    alpha.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = 420, easing = CubicOutEasing)
+                    )
+                }
+                launch {
+                    offsetY.animateTo(
+                        targetValue = 0f,
+                        animationSpec = tween(durationMillis = 420, easing = CubicOutEasing)
+                    )
+                }
+            }
+        } else if (!hasStartedAnimation) {
+            alpha.snapTo(1f)
+            offsetY.snapTo(0f)
+        }
+    }
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = tween(durationMillis = 120),
+        label = "movie_card_press_scale"
+    )
+
     val cardModifier = modifier
         .fillMaxWidth()
+        .graphicsLayer {
+            this.alpha = alpha.value
+            translationY = offsetY.value
+            scaleX = pressScale
+            scaleY = pressScale
+        }
         .movieCardContainer()
         .let { base ->
-            if (onClick != null) base.clickable(onClick = onClick) else base
+            if (onClick != null) {
+                base.clickable(
+                    interactionSource = interactionSource,
+                    indication = LocalIndication.current,
+                    onClick = onClick
+                )
+            } else {
+                base
+            }
         }
 
     Row(
@@ -76,6 +156,7 @@ fun MovieCard(
             SubcomposeAsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(movie.posterUrl)
+                    .size(posterWidthPx, posterHeightPx)
                     .diskCachePolicy(CachePolicy.ENABLED)
                     .memoryCachePolicy(CachePolicy.ENABLED)
                     .crossfade(true)

@@ -4,6 +4,7 @@
     <string name="details_title">Деталі фільму</string>
     <string name="genre_title_format">Жанр: %1$s</string>
     <string name="catalog_header_format">Показано фільмів: %1$d • Сторінок: %2$d</string>
+    <string name="catalog_header_buffer_format">Показано: %1$d з %2$d • Сторінок: %3$d</string>
     <string name="year_format">Рік: %1$d</string>
     <string name="rating_format">%1$.1f / 10</string>
     <string name="genres_format">Жанри: %1$s</string>

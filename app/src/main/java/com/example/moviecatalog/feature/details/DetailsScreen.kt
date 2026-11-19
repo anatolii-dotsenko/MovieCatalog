@@ -1,5 +1,9 @@
 package com.example.moviecatalog.feature.details
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,11 +33,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -50,6 +58,10 @@ import com.example.moviecatalog.core.designsystem.movieCardContainer
 import com.example.moviecatalog.core.designsystem.posterFrame
 import com.example.moviecatalog.domain.model.Movie
 import com.example.moviecatalog.ui.theme.MovieCatalogTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+private val DetailsEaseOut = CubicBezierEasing(0.22f, 1.0f, 0.36f, 1.0f)
 
 @Composable
 fun DetailsScreen(
@@ -129,219 +141,269 @@ fun DetailsContent(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .movieCardContainer()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Box(
+                StaggeredReveal(itemKey = movie.id, delayMillis = 0) {
+                    Row(
                         modifier = Modifier
-                            .width(130.dp)
-                            .height(195.dp)
-                            .posterFrame(),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .movieCardContainer()
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        SubcomposeAsyncImage(
-                            model = ImageRequest.Builder(context)
-                                .data(movie.posterUrl)
-                                .diskCachePolicy(CachePolicy.ENABLED)
-                                .memoryCachePolicy(CachePolicy.ENABLED)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = movie.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                            loading = {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(26.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                }
-                            },
-                            error = {
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(36.dp)
-                                    )
-                                }
-                            }
-                        )
-                    }
-
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = movie.title,
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-
-                        movie.originalTitle?.let { original ->
-                            Text(
-                                text = stringResource(R.string.original_title_format, original),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        Box(
+                            modifier = Modifier
+                                .width(130.dp)
+                                .height(195.dp)
+                                .posterFrame(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            movie.year?.let { year ->
-                                Text(
-                                    text = stringResource(R.string.year_format, year),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.metadataBadge(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                                    )
-                                )
-                            }
-
-                            movie.runtimeMinutes?.let { minutes ->
-                                Text(
-                                    text = stringResource(R.string.runtime_format, minutes),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                    modifier = Modifier.metadataBadge(
-                                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                                    )
-                                )
-                            }
-
-                            movie.rating?.let { rating ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                                    modifier = Modifier.metadataBadge(
-                                        containerColor = MaterialTheme.colorScheme.secondaryContainer
-                                    )
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Star,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.rating_format, rating),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
+                            SubcomposeAsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(movie.posterUrl)
+                                    .diskCachePolicy(CachePolicy.ENABLED)
+                                    .memoryCachePolicy(CachePolicy.ENABLED)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = movie.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                                loading = {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(26.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    }
+                                },
+                                error = {
+                                    Column(
+                                        modifier = Modifier.fillMaxSize(),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.PlayArrow,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(36.dp)
+                                        )
+                                    }
                                 }
-                            }
+                            )
                         }
 
-                        movie.voteCount?.let { votes ->
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             Text(
-                                text = stringResource(R.string.votes_format, votes),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = movie.title,
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
+
+                            movie.originalTitle?.let { original ->
+                                Text(
+                                    text = stringResource(R.string.original_title_format, original),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                movie.year?.let { year ->
+                                    Text(
+                                        text = stringResource(R.string.year_format, year),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.metadataBadge(
+                                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                                        )
+                                    )
+                                }
+
+                                movie.runtimeMinutes?.let { minutes ->
+                                    Text(
+                                        text = stringResource(R.string.runtime_format, minutes),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        modifier = Modifier.metadataBadge(
+                                            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                                        )
+                                    )
+                                }
+
+                                movie.rating?.let { rating ->
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                        modifier = Modifier.metadataBadge(
+                                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Star,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = stringResource(R.string.rating_format, rating),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    }
+                                }
+                            }
+
+                            movie.voteCount?.let { votes ->
+                                Text(
+                                    text = stringResource(R.string.votes_format, votes),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
 
                 if (movie.genres.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = stringResource(R.string.genres_label),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            movie.genres.forEach { genre ->
-                                AssistChip(
-                                    onClick = { onGenreClick(genre) },
-                                    label = { Text(genre) }
-                                )
+                    StaggeredReveal(itemKey = movie.id, delayMillis = 70) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = stringResource(R.string.genres_label),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                movie.genres.forEach { genre ->
+                                    AssistChip(
+                                        onClick = { onGenreClick(genre) },
+                                        label = { Text(genre) }
+                                    )
+                                }
                             }
                         }
                     }
                 }
 
                 if (movie.director != null || movie.country != null || movie.cast.isNotEmpty()) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .movieCardContainer()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        movie.director?.let { director ->
-                            DetailField(
-                                label = stringResource(R.string.director_label),
-                                value = director
-                            )
-                        }
-                        if (movie.cast.isNotEmpty()) {
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            DetailField(
-                                label = stringResource(R.string.cast_label),
-                                value = movie.cast.joinToString(", ")
-                            )
-                        }
-                        movie.country?.let { country ->
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            DetailField(
-                                label = stringResource(R.string.country_label),
-                                value = country
-                            )
+                    StaggeredReveal(itemKey = movie.id, delayMillis = 140) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .movieCardContainer()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            movie.director?.let { director ->
+                                DetailField(
+                                    label = stringResource(R.string.director_label),
+                                    value = director
+                                )
+                            }
+                            if (movie.cast.isNotEmpty()) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                DetailField(
+                                    label = stringResource(R.string.cast_label),
+                                    value = movie.cast.joinToString(", ")
+                                )
+                            }
+                            movie.country?.let { country ->
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                DetailField(
+                                    label = stringResource(R.string.country_label),
+                                    value = country
+                                )
+                            }
                         }
                     }
                 }
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .movieCardContainer()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.plot_label),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = movie.plot,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                StaggeredReveal(itemKey = movie.id, delayMillis = 210) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .movieCardContainer()
+                            .animateContentSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.plot_label),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = movie.plot,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
-                Button(
-                    onClick = onBackClick,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = null
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.back_to_list))
+                StaggeredReveal(itemKey = movie.id, delayMillis = 260) {
+                    Button(
+                        onClick = onBackClick,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.back_to_list))
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun StaggeredReveal(
+    itemKey: String,
+    delayMillis: Int,
+    content: @Composable () -> Unit
+) {
+    val density = LocalDensity.current
+    val initialOffsetPx = with(density) { 24.dp.toPx() }
+    val alpha = remember(itemKey) { Animatable(0f) }
+    val offsetY = remember(itemKey) { Animatable(initialOffsetPx) }
+
+    LaunchedEffect(itemKey) {
+        if (delayMillis > 0) {
+            delay(delayMillis.toLong())
+        }
+        launch {
+            alpha.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 360, easing = DetailsEaseOut)
+            )
+        }
+        launch {
+            offsetY.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(durationMillis = 360, easing = DetailsEaseOut)
+            )
+        }
+    }
+
+    Box(
+        modifier = Modifier.graphicsLayer {
+            this.alpha = alpha.value
+            translationY = offsetY.value
+        }
+    ) {
+        content()
     }
 }
 
