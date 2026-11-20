@@ -251,7 +251,7 @@ fun CatalogContent(
                                 movie = movie,
                                 compact = isLandscape,
                                 isFavorite = movie.id in state.favoriteIds,
-                                isFavoritesMode = state.isFavoritesMode,
+                                isFavoritesMode = state.isFavoritesMode || state.isCreatedMode,
                                 shouldAnimateAppear = shouldAnimate,
                                 appearDelayMillis = (index % 6) * 50,
                                 onAppearAnimationConsumed = { onMovieAnimated(movie.id) },
@@ -365,7 +365,7 @@ private fun CatalogHeaderBar(
     val isFavorites = filterMode == CatalogFilterMode.FAVORITES
     val isCreated = filterMode == CatalogFilterMode.CREATED
     val actionWord = stringResource(
-        if (isFavorites) R.string.swipe_delete_favorite else R.string.swipe_add_favorite
+        if (isFavorites || isCreated) R.string.swipe_delete_favorite else R.string.swipe_add_favorite
     )
 
     Column(

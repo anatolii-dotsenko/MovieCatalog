@@ -4,16 +4,19 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.moviecatalog.MovieCatalogApp
 import com.example.moviecatalog.core.navigation.INavigationService
 import com.example.moviecatalog.data.repository.MovieRepository
 import com.example.moviecatalog.domain.model.MovieCreateDto
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 @Immutable
 data class CreateMovieUiState(
@@ -23,7 +26,8 @@ data class CreateMovieUiState(
     val ratingError: String? = null,
     val runtimeError: String? = null,
     val permissionGranted: Boolean = false,
-    val permissionChecked: Boolean = false
+    val permissionChecked: Boolean = false,
+    val isSaving: Boolean = false
 )
 
 class CreateMovieViewModel(
@@ -85,7 +89,10 @@ class CreateMovieViewModel(
     }
 
     fun onSaveClick() {
-        val dto = _uiState.value.dto
+        val currentState = _uiState.value
+        if (currentState.isSaving) return
+
+        val dto = currentState.dto
         val titleError = if (dto.title.isBlank()) "Введіть назву фільму" else null
 
         val yearError = if (dto.yearText.isNotBlank()) {
@@ -121,8 +128,17 @@ class CreateMovieViewModel(
             return
         }
 
-        repository.addCreatedMovie(dto.toMovie())
-        navigationService.navigateBack()
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSaving = true) }
+            try {
+                repository.createAndSaveMovie(dto)
+                navigationService.navigateBack()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isSaving = false) }
+            }
+        }
     }
 
     fun onCancelClick() {

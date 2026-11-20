@@ -1,16 +1,33 @@
 package com.example.moviecatalog.data.repository
 
+import com.example.moviecatalog.data.local.IStorageService
 import com.example.moviecatalog.data.remote.IMovieApiService
 import com.example.moviecatalog.domain.model.Movie
+import com.example.moviecatalog.domain.model.MovieCreateDto
 import com.example.moviecatalog.domain.model.MoviePage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
+/**
+ * Centralized state manager coordinating remote API data and local AppData storage
+ * (Android equivalent of MovieService from the course).
+ */
 class MovieRepository(
-    private val apiService: IMovieApiService
+    private val apiService: IMovieApiService,
+    private val storageService: IStorageService
 ) {
+    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val loadMutex = Mutex()
+    private var localDataLoaded = false
+
     private val cache = LinkedHashMap<String, Movie>()
 
     private val _favoriteIds = MutableStateFlow<Set<String>>(emptySet())
@@ -22,7 +39,28 @@ class MovieRepository(
     private val _createdMovies = MutableStateFlow<List<Movie>>(emptyList())
     val createdMovies: StateFlow<List<Movie>> = _createdMovies.asStateFlow()
 
+    suspend fun ensureLocalDataLoaded() {
+        loadMutex.withLock {
+            if (localDataLoaded) return
+            val created = storageService.loadCreatedMovies()
+            val favorites = storageService.loadFavoriteMovies()
+            synchronized(cache) {
+                created.forEach { cache[it.id] = it }
+                favorites.forEach { movie ->
+                    if (!cache.containsKey(movie.id)) {
+                        cache[movie.id] = movie
+                    }
+                }
+            }
+            _createdMovies.value = created
+            _favoriteMovies.value = favorites
+            _favoriteIds.value = favorites.map { it.id }.toSet()
+            localDataLoaded = true
+        }
+    }
+
     suspend fun fetchMoviesPage(pageToken: String? = null): MoviePage {
+        ensureLocalDataLoaded()
         val page = apiService.fetchMoviesPage(pageToken)
         synchronized(cache) {
             page.movies.forEach { movie ->
@@ -33,6 +71,7 @@ class MovieRepository(
     }
 
     suspend fun getMovieById(movieId: String): Movie? {
+        ensureLocalDataLoaded()
         val cached = synchronized(cache) { cache[movieId] }
         if (cached?.isUserCreated == true || movieId.startsWith("user_")) {
             return cached
@@ -58,12 +97,14 @@ class MovieRepository(
                 _favoriteMovies.update { list ->
                     list.map { if (it.id == movieId) merged else it }
                 }
+                persistFavorites()
             }
         }
         return merged
     }
 
     suspend fun getMoviesByGenre(genre: String): List<Movie> {
+        ensureLocalDataLoaded()
         val hasMovies = synchronized(cache) { cache.isNotEmpty() }
         if (!hasMovies) {
             fetchMoviesPage(null)
@@ -75,13 +116,42 @@ class MovieRepository(
         }
     }
 
-    fun addCreatedMovie(movie: Movie) {
+    suspend fun createAndSaveMovie(dto: MovieCreateDto): Movie {
+        ensureLocalDataLoaded()
+        val localPosterUrl = dto.posterUri?.let { uri ->
+            storageService.copyPosterToAppData(uri)
+        } ?: dto.posterUri
+
+        val movie = dto.copy(posterUri = localPosterUrl).toMovie()
         synchronized(cache) {
             cache[movie.id] = movie
         }
-        _createdMovies.update { current ->
-            listOf(movie) + current.filterNot { it.id == movie.id }
+        val updated = listOf(movie) + _createdMovies.value.filterNot { it.id == movie.id }
+        _createdMovies.value = updated
+        storageService.saveCreatedMovies(updated)
+        return movie
+    }
+
+    suspend fun deleteCreatedMovie(movieId: String) {
+        ensureLocalDataLoaded()
+        val target = _createdMovies.value.firstOrNull { it.id == movieId }
+            ?: synchronized(cache) { cache[movieId] }
+
+        synchronized(cache) {
+            cache.remove(movieId)
         }
+        val updatedCreated = _createdMovies.value.filterNot { it.id == movieId }
+        _createdMovies.value = updatedCreated
+        storageService.saveCreatedMovies(updatedCreated)
+
+        if (movieId in _favoriteIds.value) {
+            _favoriteIds.update { it - movieId }
+            val updatedFavorites = _favoriteMovies.value.filterNot { it.id == movieId }
+            _favoriteMovies.value = updatedFavorites
+            storageService.saveFavoriteMovies(updatedFavorites)
+        }
+
+        storageService.deletePosterFromAppData(target?.posterUrl)
     }
 
     fun addToFavorites(movie: Movie) {
@@ -90,12 +160,14 @@ class MovieRepository(
         _favoriteMovies.update { current ->
             if (current.any { it.id == movie.id }) current else current + movie
         }
+        persistFavorites()
     }
 
     fun removeFromFavorites(movieId: String) {
         if (movieId !in _favoriteIds.value) return
         _favoriteIds.update { it - movieId }
         _favoriteMovies.update { current -> current.filterNot { it.id == movieId } }
+        persistFavorites()
     }
 
     fun toggleFavorite(movie: Movie) {
@@ -103,6 +175,13 @@ class MovieRepository(
             removeFromFavorites(movie.id)
         } else {
             addToFavorites(movie)
+        }
+    }
+
+    private fun persistFavorites() {
+        val snapshot = _favoriteMovies.value
+        repositoryScope.launch {
+            storageService.saveFavoriteMovies(snapshot)
         }
     }
 }

@@ -143,10 +143,14 @@ class CatalogViewModel(
     }
 
     fun manageFavoriteBySwipe(movie: Movie) {
-        if (_uiState.value.isFavoritesMode) {
-            repository.removeFromFavorites(movie.id)
-        } else {
-            repository.addToFavorites(movie)
+        when (_uiState.value.filterMode) {
+            CatalogFilterMode.FAVORITES -> repository.removeFromFavorites(movie.id)
+            CatalogFilterMode.CREATED -> {
+                viewModelScope.launch {
+                    repository.deleteCreatedMovie(movie.id)
+                }
+            }
+            CatalogFilterMode.ALL -> repository.addToFavorites(movie)
         }
     }
 
@@ -167,6 +171,7 @@ class CatalogViewModel(
             }
 
             try {
+                repository.ensureLocalDataLoaded()
                 val page = repository.fetchMoviesPage(pageToken = null)
                 appendToBuffer(page.movies)
                 visibleCount = minOf(VISIBLE_CHUNK_SIZE, titlesLoaded.size)

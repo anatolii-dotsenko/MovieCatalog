@@ -1,5 +1,6 @@
 package com.example.moviecatalog.feature.details
 
+import android.net.Uri
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -37,10 +39,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -87,6 +92,7 @@ fun DetailsScreen(
         onGenreClick = viewModel::onGenreClick,
         onRemoveFromFavorites = viewModel::onRemoveFromFavorites,
         onToggleFavorite = viewModel::onToggleFavorite,
+        onDeleteCreatedMovie = viewModel::onDeleteCreatedMovie,
         modifier = modifier
     )
 }
@@ -100,6 +106,7 @@ fun DetailsContent(
     onGenreClick: (String) -> Unit,
     onRemoveFromFavorites: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onDeleteCreatedMovie: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     when {
@@ -144,6 +151,34 @@ fun DetailsContent(
             val movie = state.movie
             val context = LocalContext.current
             val swipeBackThresholdPx = with(LocalDensity.current) { 96.dp.toPx() }
+            var showDeleteDialog by remember { mutableStateOf(false) }
+
+            if (showDeleteDialog) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteDialog = false },
+                    title = { Text(stringResource(R.string.delete_confirm_title)) },
+                    text = { Text(stringResource(R.string.delete_confirm_message, movie.title)) },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                showDeleteDialog = false
+                                onDeleteCreatedMovie()
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError
+                            )
+                        ) {
+                            Text(stringResource(R.string.delete_confirm_action))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeleteDialog = false }) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                    }
+                )
+            }
 
             Column(
                 modifier = modifier
@@ -174,7 +209,7 @@ fun DetailsContent(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .movieCardContainer()
+                            .movieCardContainer(isHighlighted = movie.isUserCreated)
                             .padding(14.dp),
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
@@ -365,7 +400,7 @@ fun DetailsContent(
                     }
                 }
 
-                if (movie.director != null || movie.country != null || movie.cast.isNotEmpty()) {
+                if (movie.director != null || movie.country != null || movie.cast.isNotEmpty() || movie.isUserCreated) {
                     StaggeredReveal(itemKey = movie.id, delayMillis = 140) {
                         Column(
                             modifier = Modifier
@@ -374,24 +409,42 @@ fun DetailsContent(
                                 .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            var hasPrevious = false
                             movie.director?.let { director ->
                                 DetailField(
                                     label = stringResource(R.string.director_label),
                                     value = director
                                 )
+                                hasPrevious = true
                             }
                             if (movie.cast.isNotEmpty()) {
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                if (hasPrevious) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                                 DetailField(
                                     label = stringResource(R.string.cast_label),
                                     value = movie.cast.joinToString(", ")
                                 )
+                                hasPrevious = true
                             }
                             movie.country?.let { country ->
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                if (hasPrevious) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                                 DetailField(
                                     label = stringResource(R.string.country_label),
                                     value = country
+                                )
+                                hasPrevious = true
+                            }
+                            if (movie.isUserCreated) {
+                                if (hasPrevious) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                val posterFileName = movie.posterUrl
+                                    ?.let { Uri.parse(it).lastPathSegment }
+                                val storageInfo = if (!posterFileName.isNullOrBlank()) {
+                                    "created_movies.json • Posters/$posterFileName"
+                                } else {
+                                    "created_movies.json"
+                                }
+                                DetailField(
+                                    label = stringResource(R.string.storage_path_label),
+                                    value = storageInfo
                                 )
                             }
                         }
@@ -449,6 +502,24 @@ fun DetailsContent(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(stringResource(R.string.add_to_favorites))
+                            }
+                        }
+
+                        if (movie.isUserCreated) {
+                            Button(
+                                onClick = { showDeleteDialog = true },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = null
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(stringResource(R.string.delete_created_movie))
                             }
                         }
 
@@ -538,26 +609,26 @@ private fun DetailsScreenPreview() {
                 isLoading = false,
                 isFavorite = true,
                 movie = Movie(
-                    id = "tt6751668",
-                    title = "Parasite",
-                    originalTitle = "Gisaengchung",
-                    year = 2019,
-                    rating = 8.5,
-                    runtimeMinutes = 132,
-                    voteCount = 1005000,
+                    id = "user_1",
+                    title = "Тіні забутих предків",
+                    originalTitle = "Shadows of Forgotten Ancestors",
+                    year = 1965,
+                    rating = 8.8,
+                    runtimeMinutes = 97,
                     posterUrl = null,
-                    plot = "Greed and class discrimination threaten the newly formed symbiotic relationship between the wealthy Park family and the destitute Kim clan.",
-                    genres = listOf("Drama", "Thriller"),
-                    director = "Bong Joon Ho",
-                    cast = listOf("Song Kang-ho", "Lee Sun-kyun", "Cho Yeo-jeong"),
-                    country = "South Korea"
+                    plot = "Історія кохання Івана та Марічки у Карпатах.",
+                    genres = listOf("Drama", "Romance"),
+                    director = "Сергій Параджанов",
+                    country = "Ukraine",
+                    isUserCreated = true
                 )
             ),
             onRetry = {},
             onBackClick = {},
             onGenreClick = {},
             onRemoveFromFavorites = {},
-            onToggleFavorite = {}
+            onToggleFavorite = {},
+            onDeleteCreatedMovie = {}
         )
     }
 }

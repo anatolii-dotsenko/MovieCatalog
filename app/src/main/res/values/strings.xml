@@ -40,6 +40,12 @@
     <string name="cancel">Cancel</string>
     <string name="poster_preview_empty">Постер не вибрано</string>
     <string name="gallery_permission_note">Надайте доступ до галереї або виберіть зображення через системний Photo Picker</string>
+    <string name="saved_in_appdata_note">Постер і дані фільму будуть скопійовані у внутрішнє сховище застосунку (AppData/filesDir)</string>
+    <string name="delete_created_movie">Видалити фільм зі сховища</string>
+    <string name="delete_confirm_title">Видалити створений фільм?</string>
+    <string name="delete_confirm_message">Фільм «%1$s» та його скопійований постер буде остаточно видалено з локального сховища застосунку.</string>
+    <string name="delete_confirm_action">Видалити</string>
+    <string name="storage_path_label">Локальне сховище (AppData)</string>
     <string name="field_title_label">Назва фільму *</string>
     <string name="field_original_title_label">Оригінальна назва</string>
     <string name="field_year_label">Рік випуску</string>

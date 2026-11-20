@@ -64,6 +64,13 @@ class DetailsViewModel(
         _uiState.value.movie?.let(repository::toggleFavorite)
     }
 
+    fun onDeleteCreatedMovie() {
+        viewModelScope.launch {
+            repository.deleteCreatedMovie(movieId)
+            navigationService.navigateBack()
+        }
+    }
+
     private fun loadDetails() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }

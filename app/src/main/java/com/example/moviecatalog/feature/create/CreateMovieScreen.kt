@@ -197,10 +197,11 @@ fun CreateMovieContent(
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Button(
                     onClick = onSelectPoster,
+                    enabled = !state.isSaving,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = null)
@@ -216,6 +217,12 @@ fun CreateMovieContent(
                     text = stringResource(R.string.gallery_permission_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = stringResource(R.string.saved_in_appdata_note),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -346,6 +353,7 @@ fun CreateMovieContent(
         ) {
             OutlinedButton(
                 onClick = onCancelClick,
+                enabled = !state.isSaving,
                 modifier = Modifier.weight(1f)
             ) {
                 Icon(imageVector = Icons.Default.Close, contentDescription = null)
@@ -355,9 +363,17 @@ fun CreateMovieContent(
 
             Button(
                 onClick = onSaveClick,
+                enabled = !state.isSaving,
                 modifier = Modifier.weight(1f)
             ) {
-                Icon(imageVector = Icons.Default.Check, contentDescription = null)
+                if (state.isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(imageVector = Icons.Default.Check, contentDescription = null)
+                }
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(stringResource(R.string.save_movie))
             }
