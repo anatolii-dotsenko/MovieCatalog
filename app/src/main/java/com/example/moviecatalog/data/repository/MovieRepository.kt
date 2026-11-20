@@ -19,6 +19,9 @@ class MovieRepository(
     private val _favoriteMovies = MutableStateFlow<List<Movie>>(emptyList())
     val favoriteMovies: StateFlow<List<Movie>> = _favoriteMovies.asStateFlow()
 
+    private val _createdMovies = MutableStateFlow<List<Movie>>(emptyList())
+    val createdMovies: StateFlow<List<Movie>> = _createdMovies.asStateFlow()
+
     suspend fun fetchMoviesPage(pageToken: String? = null): MoviePage {
         val page = apiService.fetchMoviesPage(pageToken)
         synchronized(cache) {
@@ -31,6 +34,10 @@ class MovieRepository(
 
     suspend fun getMovieById(movieId: String): Movie? {
         val cached = synchronized(cache) { cache[movieId] }
+        if (cached?.isUserCreated == true || movieId.startsWith("user_")) {
+            return cached
+        }
+
         val detailed = apiService.fetchMovieDetails(movieId)
         val merged = when {
             detailed != null && cached != null -> detailed.copy(
@@ -65,6 +72,15 @@ class MovieRepository(
             cache.values.filter { movie ->
                 movie.genres.any { it.equals(genre, ignoreCase = true) }
             }
+        }
+    }
+
+    fun addCreatedMovie(movie: Movie) {
+        synchronized(cache) {
+            cache[movie.id] = movie
+        }
+        _createdMovies.update { current ->
+            listOf(movie) + current.filterNot { it.id == movie.id }
         }
     }
 

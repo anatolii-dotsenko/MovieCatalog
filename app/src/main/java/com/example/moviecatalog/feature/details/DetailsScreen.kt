@@ -269,6 +269,17 @@ fun DetailsContent(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                if (movie.isUserCreated) {
+                                    Text(
+                                        text = stringResource(R.string.user_created_badge),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        modifier = Modifier.metadataBadge(
+                                            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                                        )
+                                    )
+                                }
+
                                 movie.year?.let { year ->
                                     Text(
                                         text = stringResource(R.string.year_format, year),

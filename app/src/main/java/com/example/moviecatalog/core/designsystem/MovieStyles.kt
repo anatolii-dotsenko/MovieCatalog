@@ -10,25 +10,41 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
  * Reusable card container style (Compose analog of MAUI Styles.xaml).
+ * Supports highlighted border/tint to visually distinguish user-created movies.
  */
 @Composable
 fun Modifier.movieCardContainer(
     shape: Shape = MaterialTheme.shapes.medium,
-    elevation: Dp = 3.dp
-): Modifier = this
-    .shadow(elevation = elevation, shape = shape, clip = false)
-    .clip(shape)
-    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-    .border(
-        width = 1.dp,
-        color = MaterialTheme.colorScheme.outlineVariant,
-        shape = shape
-    )
+    elevation: Dp = 3.dp,
+    isHighlighted: Boolean = false,
+    highlightColor: Color = MaterialTheme.colorScheme.tertiary
+): Modifier {
+    val backgroundColor = if (isHighlighted) {
+        MaterialTheme.colorScheme.tertiaryContainer
+            .copy(alpha = 0.28f)
+            .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    }
+    val borderWidth = if (isHighlighted) 1.8.dp else 1.dp
+    val borderColor = if (isHighlighted) highlightColor else MaterialTheme.colorScheme.outlineVariant
+
+    return this
+        .shadow(elevation = elevation, shape = shape, clip = false)
+        .clip(shape)
+        .background(backgroundColor)
+        .border(
+            width = borderWidth,
+            color = borderColor,
+            shape = shape
+        )
+}
 
 /**
  * Reusable poster frame style with rounded clip, border, and placeholder background.

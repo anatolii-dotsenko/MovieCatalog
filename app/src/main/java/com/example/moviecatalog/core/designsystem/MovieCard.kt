@@ -194,7 +194,7 @@ fun SwipeableMovieCard(
 
 /**
  * Reusable movie list item component configured via [movie].
- * Includes draw-phase appear animation (alpha + vertical slide) and interactive press scale.
+ * Includes draw-phase appear animation, press scale, favorite badge, and user-created visual marker.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -266,7 +266,7 @@ fun MovieCard(
             scaleX = pressScale
             scaleY = pressScale
         }
-        .movieCardContainer()
+        .movieCardContainer(isHighlighted = movie.isUserCreated)
         .let { base ->
             if (onClick != null) {
                 base.clickable(
@@ -334,6 +334,17 @@ fun MovieCard(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                if (movie.isUserCreated) {
+                    Text(
+                        text = stringResource(R.string.user_created_badge),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.metadataBadge(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                        )
+                    )
+                }
+
                 movie.year?.let { year ->
                     Text(
                         text = stringResource(R.string.year_format, year),
@@ -443,7 +454,7 @@ private val sampleMovie = Movie(
 private fun MovieCardLightPreview() {
     MovieCatalogTheme(darkTheme = false) {
         Box(modifier = Modifier.padding(12.dp)) {
-            MovieCard(movie = sampleMovie, isFavorite = true)
+            MovieCard(movie = sampleMovie.copy(isUserCreated = true), isFavorite = true)
         }
     }
 }

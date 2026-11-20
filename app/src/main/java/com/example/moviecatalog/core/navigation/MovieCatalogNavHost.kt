@@ -33,6 +33,7 @@ import androidx.navigation.navArgument
 import com.example.moviecatalog.MovieCatalogApp
 import com.example.moviecatalog.R
 import com.example.moviecatalog.feature.catalog.CatalogScreen
+import com.example.moviecatalog.feature.create.CreateMovieScreen
 import com.example.moviecatalog.feature.details.DetailsScreen
 import com.example.moviecatalog.feature.genre.GenreMoviesScreen
 
@@ -61,6 +62,11 @@ fun MovieCatalogNavHost(
                         launchSingleTop = true
                     }
                 }
+                NavigationCommand.ToCreateMovie -> {
+                    navController.navigate(Routes.CREATE_MOVIE) {
+                        launchSingleTop = true
+                    }
+                }
                 NavigationCommand.Back -> {
                     navController.popBackStack()
                 }
@@ -73,6 +79,7 @@ fun MovieCatalogNavHost(
     val screenTitle = when (currentRoute) {
         Routes.DETAILS -> stringResource(R.string.details_title)
         Routes.GENRE -> stringResource(R.string.genre_title_format, currentGenre)
+        Routes.CREATE_MOVIE -> stringResource(R.string.create_movie_title)
         else -> stringResource(R.string.catalog_title)
     }
 
@@ -136,6 +143,9 @@ fun MovieCatalogNavHost(
             ) { entry ->
                 val genre = Uri.decode(entry.arguments?.getString("genre").orEmpty())
                 GenreMoviesScreen(genre = genre)
+            }
+            composable(Routes.CREATE_MOVIE) {
+                CreateMovieScreen()
             }
         }
     }

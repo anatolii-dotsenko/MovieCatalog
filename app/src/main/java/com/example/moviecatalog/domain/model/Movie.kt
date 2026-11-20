@@ -16,7 +16,8 @@ data class Movie(
     val voteCount: Int? = null,
     val director: String? = null,
     val cast: List<String> = emptyList(),
-    val country: String? = null
+    val country: String? = null,
+    val isUserCreated: Boolean = false
 )
 
 @Immutable

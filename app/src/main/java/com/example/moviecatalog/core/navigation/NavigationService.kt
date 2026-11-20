@@ -9,6 +9,7 @@ object Routes {
     const val CATALOG = "catalog"
     const val DETAILS = "details/{movieId}"
     const val GENRE = "genre/{genre}"
+    const val CREATE_MOVIE = "create_movie"
 
     fun details(movieId: String): String = "details/${Uri.encode(movieId)}"
     fun genre(genre: String): String = "genre/${Uri.encode(genre)}"
@@ -17,6 +18,7 @@ object Routes {
 sealed interface NavigationCommand {
     data class ToDetails(val movieId: String) : NavigationCommand
     data class ToGenre(val genre: String) : NavigationCommand
+    data object ToCreateMovie : NavigationCommand
     data object Back : NavigationCommand
 }
 
@@ -24,6 +26,7 @@ interface INavigationService {
     val commands: SharedFlow<NavigationCommand>
     fun navigateToDetails(movieId: String)
     fun navigateToGenre(genre: String)
+    fun navigateToCreateMovie()
     fun navigateBack()
 }
 
@@ -41,6 +44,10 @@ class NavigationService : INavigationService {
 
     override fun navigateToGenre(genre: String) {
         _commands.tryEmit(NavigationCommand.ToGenre(genre))
+    }
+
+    override fun navigateToCreateMovie() {
+        _commands.tryEmit(NavigationCommand.ToCreateMovie)
     }
 
     override fun navigateBack() {

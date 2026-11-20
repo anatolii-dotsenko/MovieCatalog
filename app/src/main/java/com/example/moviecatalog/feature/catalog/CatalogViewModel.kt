@@ -18,6 +18,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+enum class CatalogFilterMode {
+    ALL,
+    FAVORITES,
+    CREATED
+}
+
 @Immutable
 data class CatalogUiState(
     val movies: List<Movie> = emptyList(),
@@ -29,9 +35,16 @@ data class CatalogUiState(
     val endReached: Boolean = false,
     val currentPage: Int = 0,
     val selectedMovieId: String? = null,
-    val isFavoritesMode: Boolean = false,
-    val favoriteIds: Set<String> = emptySet()
-)
+    val filterMode: CatalogFilterMode = CatalogFilterMode.ALL,
+    val favoriteIds: Set<String> = emptySet(),
+    val createdCount: Int = 0
+) {
+    val isFavoritesMode: Boolean
+        get() = filterMode == CatalogFilterMode.FAVORITES
+
+    val isCreatedMode: Boolean
+        get() = filterMode == CatalogFilterMode.CREATED
+}
 
 class CatalogViewModel(
     private val repository: MovieRepository,
@@ -52,14 +65,26 @@ class CatalogViewModel(
             }
         }
         viewModelScope.launch {
-            repository.favoriteMovies.collect { favorites ->
-                if (_uiState.value.isFavoritesMode) {
-                    _uiState.update {
-                        it.copy(
-                            movies = favorites,
-                            totalLoadedInBuffer = favorites.size,
-                            endReached = true
-                        )
+            repository.favoriteMovies.collect {
+                _uiState.update { state ->
+                    if (state.filterMode == CatalogFilterMode.FAVORITES) {
+                        applyFilterProjection(state)
+                    } else {
+                        state
+                    }
+                }
+            }
+        }
+        viewModelScope.launch {
+            repository.createdMovies.collect { created ->
+                _uiState.update { state ->
+                    val updated = state.copy(createdCount = created.size)
+                    if (updated.filterMode == CatalogFilterMode.ALL ||
+                        updated.filterMode == CatalogFilterMode.CREATED
+                    ) {
+                        applyFilterProjection(updated)
+                    } else {
+                        updated
                     }
                 }
             }
@@ -79,31 +104,41 @@ class CatalogViewModel(
         _uiState.update { it.copy(selectedMovieId = null) }
     }
 
+    fun onCreateMovieClick() {
+        navigationService.navigateToCreateMovie()
+    }
+
     fun toggleFavoritesMode() {
-        val nextFavoritesMode = !_uiState.value.isFavoritesMode
-        if (nextFavoritesMode) {
-            val favorites = repository.favoriteMovies.value
-            _uiState.update {
-                it.copy(
-                    isFavoritesMode = true,
-                    movies = favorites,
-                    totalLoadedInBuffer = favorites.size,
+        _uiState.update { state ->
+            val nextMode = if (state.filterMode == CatalogFilterMode.FAVORITES) {
+                CatalogFilterMode.ALL
+            } else {
+                CatalogFilterMode.FAVORITES
+            }
+            applyFilterProjection(
+                state.copy(
+                    filterMode = nextMode,
                     isLoadingMore = false,
-                    errorMessage = null,
-                    endReached = true
+                    errorMessage = null
                 )
+            )
+        }
+    }
+
+    fun toggleCreatedMode() {
+        _uiState.update { state ->
+            val nextMode = if (state.filterMode == CatalogFilterMode.CREATED) {
+                CatalogFilterMode.ALL
+            } else {
+                CatalogFilterMode.CREATED
             }
-        } else {
-            val visibleSnapshot = titlesLoaded.take(visibleCount)
-            _uiState.update {
-                it.copy(
-                    isFavoritesMode = false,
-                    movies = visibleSnapshot,
-                    totalLoadedInBuffer = titlesLoaded.size,
-                    errorMessage = null,
-                    endReached = visibleCount >= titlesLoaded.size && it.nextPageToken == null
+            applyFilterProjection(
+                state.copy(
+                    filterMode = nextMode,
+                    isLoadingMore = false,
+                    errorMessage = null
                 )
-            }
+            )
         }
     }
 
@@ -121,40 +156,28 @@ class CatalogViewModel(
             animatedMovieIds.clear()
             visibleCount = 0
 
-            _uiState.update {
-                it.copy(
-                    movies = if (it.isFavoritesMode) repository.favoriteMovies.value else emptyList(),
-                    totalLoadedInBuffer = if (it.isFavoritesMode) repository.favoriteMovies.value.size else 0,
-                    isInitialLoading = !it.isFavoritesMode,
+            _uiState.update { state ->
+                val loadingState = state.copy(
+                    isInitialLoading = state.filterMode == CatalogFilterMode.ALL,
                     isLoadingMore = false,
                     errorMessage = null,
-                    endReached = it.isFavoritesMode,
                     currentPage = 0
                 )
+                applyFilterProjection(loadingState)
             }
+
             try {
                 val page = repository.fetchMoviesPage(pageToken = null)
                 appendToBuffer(page.movies)
                 visibleCount = minOf(VISIBLE_CHUNK_SIZE, titlesLoaded.size)
-                val visibleSnapshot = titlesLoaded.take(visibleCount)
 
                 _uiState.update { state ->
-                    if (state.isFavoritesMode) {
-                        state.copy(
-                            isInitialLoading = false,
-                            nextPageToken = page.nextPageToken,
-                            currentPage = if (titlesLoaded.isNotEmpty()) 1 else 0
-                        )
-                    } else {
-                        state.copy(
-                            movies = visibleSnapshot,
-                            totalLoadedInBuffer = titlesLoaded.size,
-                            isInitialLoading = false,
-                            nextPageToken = page.nextPageToken,
-                            endReached = visibleCount >= titlesLoaded.size && page.nextPageToken == null,
-                            currentPage = if (titlesLoaded.isNotEmpty()) 1 else 0
-                        )
-                    }
+                    val nextState = state.copy(
+                        isInitialLoading = false,
+                        nextPageToken = page.nextPageToken,
+                        currentPage = if (titlesLoaded.isNotEmpty()) 1 else 0
+                    )
+                    applyFilterProjection(nextState)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -171,28 +194,21 @@ class CatalogViewModel(
 
     fun loadMore() {
         val current = _uiState.value
-        if (current.isFavoritesMode || current.isInitialLoading || current.isLoadingMore || current.endReached) {
+        if (current.filterMode != CatalogFilterMode.ALL ||
+            current.isInitialLoading ||
+            current.isLoadingMore ||
+            current.endReached
+        ) {
             return
         }
 
         viewModelScope.launch {
             if (visibleCount < titlesLoaded.size) {
                 visibleCount = minOf(visibleCount + VISIBLE_CHUNK_SIZE, titlesLoaded.size)
-                val visibleSnapshot = titlesLoaded.take(visibleCount)
                 val remainingBuffered = titlesLoaded.size - visibleCount
                 val shouldPrefetch = remainingBuffered < VISIBLE_CHUNK_SIZE && current.nextPageToken != null
 
-                _uiState.update { state ->
-                    if (state.isFavoritesMode) {
-                        state
-                    } else {
-                        state.copy(
-                            movies = visibleSnapshot,
-                            totalLoadedInBuffer = titlesLoaded.size,
-                            endReached = visibleCount >= titlesLoaded.size && state.nextPageToken == null
-                        )
-                    }
-                }
+                _uiState.update { state -> applyFilterProjection(state) }
 
                 if (shouldPrefetch) {
                     fetchNextPageIntoBuffer()
@@ -212,25 +228,15 @@ class CatalogViewModel(
             if (revealNextChunk) {
                 visibleCount = minOf(visibleCount + VISIBLE_CHUNK_SIZE, titlesLoaded.size)
             }
-            val visibleSnapshot = titlesLoaded.take(visibleCount)
 
             _uiState.update { state ->
-                if (state.isFavoritesMode) {
+                applyFilterProjection(
                     state.copy(
                         isLoadingMore = false,
                         nextPageToken = page.nextPageToken,
                         currentPage = state.currentPage + 1
                     )
-                } else {
-                    state.copy(
-                        movies = visibleSnapshot,
-                        totalLoadedInBuffer = titlesLoaded.size,
-                        isLoadingMore = false,
-                        nextPageToken = page.nextPageToken,
-                        endReached = visibleCount >= titlesLoaded.size && page.nextPageToken == null,
-                        currentPage = state.currentPage + 1
-                    )
-                }
+                )
             }
         } catch (e: CancellationException) {
             throw e
@@ -239,6 +245,35 @@ class CatalogViewModel(
                 it.copy(
                     isLoadingMore = false,
                     errorMessage = e.localizedMessage ?: "Не вдалося довантажити фільми"
+                )
+            }
+        }
+    }
+
+    private fun applyFilterProjection(state: CatalogUiState): CatalogUiState {
+        val created = repository.createdMovies.value
+        val favorites = repository.favoriteMovies.value
+        return when (state.filterMode) {
+            CatalogFilterMode.FAVORITES -> state.copy(
+                movies = favorites,
+                totalLoadedInBuffer = favorites.size,
+                endReached = true,
+                createdCount = created.size
+            )
+            CatalogFilterMode.CREATED -> state.copy(
+                movies = created,
+                totalLoadedInBuffer = created.size,
+                endReached = true,
+                createdCount = created.size
+            )
+            CatalogFilterMode.ALL -> {
+                val visibleApiMovies = titlesLoaded.take(visibleCount)
+                val merged = (created + visibleApiMovies).distinctBy { it.id }
+                state.copy(
+                    movies = merged,
+                    totalLoadedInBuffer = created.size + titlesLoaded.size,
+                    endReached = visibleCount >= titlesLoaded.size && state.nextPageToken == null,
+                    createdCount = created.size
                 )
             }
         }
