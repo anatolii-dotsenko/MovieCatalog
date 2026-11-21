@@ -6,13 +6,13 @@ MovieCatalog is an Android application built with Kotlin, Jetpack Compose, and M
 
 ## Screenshots
 
-| Catalog (Signed Out) | Google OAuth 2.0 Sign-In | Catalog (Signed In) |
-| :---: | :---: | :---: |
-| ![Catalog Signed Out](docs/screenshots/01_catalog_logged_out.png) | ![Google OAuth Sign-In](docs/screenshots/02_google_oauth_login.png) | ![Catalog Signed In](docs/screenshots/03_catalog_authorized.png) |
-
-| Movie Details & Genres | Create Movie (Photo Picker) | User Profile (`EN`) | User Profile / Catalog (`UK` + Dark Theme) |
+| Catalog (Signed Out) | Catalog (Landscape) | Google OAuth 2.0 Sign-In | Catalog (Signed In) |
 | :---: | :---: | :---: | :---: |
-| ![Movie Details](docs/screenshots/04_movie_details.png) | ![Create Movie](docs/screenshots/05_create_movie.png) | ![Profile EN](docs/screenshots/06_profile_en.png) | ![Profile UK Dark](docs/screenshots/07_profile_uk_dark.png) |
+| ![Catalog Signed Out](docs/screenshots/01_catalog_logged_out.jpg) | ![Catalog Landscape](docs/screenshots/02_catalog_landscape.jpg) | ![Google OAuth Sign-In](docs/screenshots/03_google_oauth_login.jpg) | ![Catalog Signed In](docs/screenshots/04_catalog_authorized.jpg) |
+
+| Movie Details & Genres | Create Movie (Photo Picker) | User Profile (`EN`) | User Profile (`UK` + Dark Theme) |
+| :---: | :---: | :---: | :---: |
+| ![Movie Details](docs/screenshots/05_movie_details.jpg) | ![Create Movie](docs/screenshots/06_create_movie.png) | ![Profile EN](docs/screenshots/07_profile_en.jpg) | ![Profile UK Dark](docs/screenshots/08_profile_uk_dark.jpg) |
 
 ---
 
