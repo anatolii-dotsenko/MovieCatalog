@@ -56,4 +56,13 @@
     <string name="field_cast_label">Актори (через кому)</string>
     <string name="field_country_label">Країна</string>
     <string name="field_plot_label">Опис сюжету</string>
+    <string name="sign_in">Sign In</string>
+    <string name="sign_out">Sign Out</string>
+    <string name="sign_in_with_google">Вхід через Google (OAuth2)</string>
+    <string name="sign_in_dialog_subtitle">Оберіть обліковий запис Google або вкажіть OAuth2 Client ID для авторизації через браузер:</string>
+    <string name="oauth_client_id_label">Google OAuth2 Client ID (опційно)</string>
+    <string name="open_google_browser">Відкрити accounts.google.com у браузері</string>
+    <string name="auth_required_message">Увійдіть через Google-акаунт, щоб додавати улюблені фільми та створювати власні записи.</string>
+    <string name="auth_locked_details_note">Авторизуйтесь у головному вікні, щоб додавати фільми в улюблені.</string>
+    <string name="token_refreshed_badge">SecureStorage • Токени оновлено (%1$s)</string>
 </resources>

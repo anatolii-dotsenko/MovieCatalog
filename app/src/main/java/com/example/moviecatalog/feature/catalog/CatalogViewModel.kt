@@ -9,8 +9,10 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.moviecatalog.MovieCatalogApp
 import com.example.moviecatalog.core.navigation.INavigationService
+import com.example.moviecatalog.data.auth.IAuthService
 import com.example.moviecatalog.data.repository.MovieRepository
 import com.example.moviecatalog.domain.model.Movie
+import com.example.moviecatalog.domain.model.UserProfile
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,28 +39,57 @@ data class CatalogUiState(
     val selectedMovieId: String? = null,
     val filterMode: CatalogFilterMode = CatalogFilterMode.ALL,
     val favoriteIds: Set<String> = emptySet(),
-    val createdCount: Int = 0
+    val createdCount: Int = 0,
+    val currentUser: UserProfile? = null,
+    val authStatusMessage: String? = null
 ) {
     val isFavoritesMode: Boolean
         get() = filterMode == CatalogFilterMode.FAVORITES
 
     val isCreatedMode: Boolean
         get() = filterMode == CatalogFilterMode.CREATED
+
+    val isAuthorized: Boolean
+        get() = currentUser != null
 }
 
 class CatalogViewModel(
     private val repository: MovieRepository,
-    private val navigationService: INavigationService
+    private val navigationService: INavigationService,
+    private val authService: IAuthService
 ) : ViewModel() {
 
     private val titlesLoaded = mutableListOf<Movie>()
     private val animatedMovieIds = mutableSetOf<String>()
     private var visibleCount = 0
 
-    private val _uiState = MutableStateFlow(CatalogUiState())
+    private val _uiState = MutableStateFlow(
+        CatalogUiState(
+            currentUser = authService.currentUser.value,
+            authStatusMessage = authService.authStatusMessage.value
+        )
+    )
     val uiState: StateFlow<CatalogUiState> = _uiState.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            authService.currentUser.collect { user ->
+                _uiState.update { state ->
+                    val nextFilter = if (user == null) CatalogFilterMode.ALL else state.filterMode
+                    applyFilterProjection(
+                        state.copy(
+                            currentUser = user,
+                            filterMode = nextFilter
+                        )
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
+            authService.authStatusMessage.collect { status ->
+                _uiState.update { it.copy(authStatusMessage = status) }
+            }
+        }
         viewModelScope.launch {
             repository.favoriteIds.collect { ids ->
                 _uiState.update { it.copy(favoriteIds = ids) }
@@ -105,10 +136,12 @@ class CatalogViewModel(
     }
 
     fun onCreateMovieClick() {
+        if (!_uiState.value.isAuthorized) return
         navigationService.navigateToCreateMovie()
     }
 
     fun toggleFavoritesMode() {
+        if (!_uiState.value.isAuthorized) return
         _uiState.update { state ->
             val nextMode = if (state.filterMode == CatalogFilterMode.FAVORITES) {
                 CatalogFilterMode.ALL
@@ -126,6 +159,7 @@ class CatalogViewModel(
     }
 
     fun toggleCreatedMode() {
+        if (!_uiState.value.isAuthorized) return
         _uiState.update { state ->
             val nextMode = if (state.filterMode == CatalogFilterMode.CREATED) {
                 CatalogFilterMode.ALL
@@ -143,6 +177,7 @@ class CatalogViewModel(
     }
 
     fun manageFavoriteBySwipe(movie: Movie) {
+        if (!_uiState.value.isAuthorized) return
         when (_uiState.value.filterMode) {
             CatalogFilterMode.FAVORITES -> repository.removeFromFavorites(movie.id)
             CatalogFilterMode.CREATED -> {
@@ -256,8 +291,8 @@ class CatalogViewModel(
     }
 
     private fun applyFilterProjection(state: CatalogUiState): CatalogUiState {
-        val created = repository.createdMovies.value
-        val favorites = repository.favoriteMovies.value
+        val created = if (state.currentUser != null) repository.createdMovies.value else emptyList()
+        val favorites = if (state.currentUser != null) repository.favoriteMovies.value else emptyList()
         return when (state.filterMode) {
             CatalogFilterMode.FAVORITES -> state.copy(
                 movies = favorites,
@@ -301,7 +336,8 @@ class CatalogViewModel(
                 val app = this[APPLICATION_KEY] as MovieCatalogApp
                 CatalogViewModel(
                     repository = app.movieRepository,
-                    navigationService = app.navigationService
+                    navigationService = app.navigationService,
+                    authService = app.authService
                 )
             }
         }

@@ -15,14 +15,14 @@ import java.util.UUID
 interface IStorageService {
     suspend fun copyPosterToAppData(sourceUriString: String): String?
     suspend fun deletePosterFromAppData(posterUrl: String?)
-    suspend fun saveCreatedMovies(movies: List<Movie>)
-    suspend fun loadCreatedMovies(): List<Movie>
-    suspend fun saveFavoriteMovies(movies: List<Movie>)
-    suspend fun loadFavoriteMovies(): List<Movie>
+    suspend fun saveCreatedMovies(movies: List<Movie>, userId: String)
+    suspend fun loadCreatedMovies(userId: String): List<Movie>
+    suspend fun saveFavoriteMovies(movies: List<Movie>, userId: String)
+    suspend fun loadFavoriteMovies(userId: String): List<Movie>
 }
 
 /**
- * Local file storage service managing camelCase JSON files and copied posters inside AppData (filesDir).
+ * Local file storage service managing per-user camelCase JSON files and copied posters inside AppData (filesDir).
  */
 class StorageService(
     private val context: Context
@@ -31,11 +31,11 @@ class StorageService(
     private val postersDir: File
         get() = File(context.filesDir, POSTERS_DIR_NAME).apply { mkdirs() }
 
-    private val createdMoviesFile: File
-        get() = File(context.filesDir, CREATED_MOVIES_FILE)
+    private fun createdMoviesFile(userId: String): File =
+        File(context.filesDir, "created_movies_${sanitizeUserId(userId)}.json")
 
-    private val favoriteMoviesFile: File
-        get() = File(context.filesDir, FAVORITE_MOVIES_FILE)
+    private fun favoriteMoviesFile(userId: String): File =
+        File(context.filesDir, "favorite_movies_${sanitizeUserId(userId)}.json")
 
     override suspend fun copyPosterToAppData(sourceUriString: String): String? = withContext(Dispatchers.IO) {
         if (sourceUriString.isBlank()) return@withContext null
@@ -84,17 +84,22 @@ class StorageService(
         }
     }
 
-    override suspend fun saveCreatedMovies(movies: List<Movie>) {
-        saveMoviesList(createdMoviesFile, movies)
+    override suspend fun saveCreatedMovies(movies: List<Movie>, userId: String) {
+        saveMoviesList(createdMoviesFile(userId), movies)
     }
 
-    override suspend fun loadCreatedMovies(): List<Movie> = loadMoviesList(createdMoviesFile)
+    override suspend fun loadCreatedMovies(userId: String): List<Movie> =
+        loadMoviesList(createdMoviesFile(userId))
 
-    override suspend fun saveFavoriteMovies(movies: List<Movie>) {
-        saveMoviesList(favoriteMoviesFile, movies)
+    override suspend fun saveFavoriteMovies(movies: List<Movie>, userId: String) {
+        saveMoviesList(favoriteMoviesFile(userId), movies)
     }
 
-    override suspend fun loadFavoriteMovies(): List<Movie> = loadMoviesList(favoriteMoviesFile)
+    override suspend fun loadFavoriteMovies(userId: String): List<Movie> =
+        loadMoviesList(favoriteMoviesFile(userId))
+
+    private fun sanitizeUserId(userId: String): String =
+        userId.replace(Regex("[^A-Za-z0-9_-]"), "_").ifBlank { "default" }
 
     private suspend fun saveMoviesList(targetFile: File, movies: List<Movie>) = withContext(Dispatchers.IO) {
         val array = JSONArray()
@@ -195,7 +200,5 @@ class StorageService(
 
     private companion object {
         const val POSTERS_DIR_NAME = "Posters"
-        const val CREATED_MOVIES_FILE = "created_movies.json"
-        const val FAVORITE_MOVIES_FILE = "favorite_movies.json"
     }
 }

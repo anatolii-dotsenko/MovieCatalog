@@ -78,6 +78,7 @@ fun SwipeableMovieCard(
     onCardClick: () -> Unit,
     onSwipeAction: (Movie) -> Unit,
     modifier: Modifier = Modifier,
+    swipeEnabled: Boolean = true,
     compact: Boolean = false,
     shouldAnimateAppear: Boolean = false,
     appearDelayMillis: Int = 50,
@@ -88,6 +89,12 @@ fun SwipeableMovieCard(
     val revealWidth = 104.dp
     val revealWidthPx = with(density) { revealWidth.toPx() }
     val offsetX = remember(movie.id, isFavoritesMode) { Animatable(0f) }
+
+    LaunchedEffect(swipeEnabled) {
+        if (!swipeEnabled && offsetX.value != 0f) {
+            offsetX.snapTo(0f)
+        }
+    }
 
     val actionBackgroundColor = if (isFavoritesMode) {
         MaterialTheme.colorScheme.error
@@ -146,31 +153,37 @@ fun SwipeableMovieCard(
         Box(
             modifier = Modifier
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                .pointerInput(movie.id, isFavoritesMode) {
-                    detectHorizontalDragGestures(
-                        onHorizontalDrag = { change, dragAmount ->
-                            change.consume()
-                            scope.launch {
-                                val next = (offsetX.value + dragAmount).coerceIn(0f, revealWidthPx)
-                                offsetX.snapTo(next)
-                            }
-                        },
-                        onDragEnd = {
-                            scope.launch {
-                                val target = if (offsetX.value >= revealWidthPx * 0.45f) {
-                                    revealWidthPx
-                                } else {
-                                    0f
+                .let { base ->
+                    if (swipeEnabled) {
+                        base.pointerInput(movie.id, isFavoritesMode) {
+                            detectHorizontalDragGestures(
+                                onHorizontalDrag = { change, dragAmount ->
+                                    change.consume()
+                                    scope.launch {
+                                        val next = (offsetX.value + dragAmount).coerceIn(0f, revealWidthPx)
+                                        offsetX.snapTo(next)
+                                    }
+                                },
+                                onDragEnd = {
+                                    scope.launch {
+                                        val target = if (offsetX.value >= revealWidthPx * 0.45f) {
+                                            revealWidthPx
+                                        } else {
+                                            0f
+                                        }
+                                        offsetX.animateTo(target, animationSpec = tween(200))
+                                    }
+                                },
+                                onDragCancel = {
+                                    scope.launch {
+                                        offsetX.animateTo(0f, animationSpec = tween(200))
+                                    }
                                 }
-                                offsetX.animateTo(target, animationSpec = tween(200))
-                            }
-                        },
-                        onDragCancel = {
-                            scope.launch {
-                                offsetX.animateTo(0f, animationSpec = tween(200))
-                            }
+                            )
                         }
-                    )
+                    } else {
+                        base
+                    }
                 }
         ) {
             MovieCard(

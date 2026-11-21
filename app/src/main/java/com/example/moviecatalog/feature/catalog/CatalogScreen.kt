@@ -28,6 +28,8 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
@@ -49,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -56,11 +59,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.moviecatalog.R
 import com.example.moviecatalog.core.designsystem.SwipeableMovieCard
 import com.example.moviecatalog.core.designsystem.movieCardContainer
+import com.example.moviecatalog.core.navigation.UserAvatarBadge
 import com.example.moviecatalog.domain.model.Movie
+import com.example.moviecatalog.domain.model.UserProfile
 import com.example.moviecatalog.ui.theme.MovieCatalogTheme
 
 @Composable
 fun CatalogScreen(
+    onSignInClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: CatalogViewModel = viewModel(factory = CatalogViewModel.Factory)
 ) {
@@ -75,6 +81,7 @@ fun CatalogScreen(
         onToggleCreatedMode = viewModel::toggleCreatedMode,
         onCreateMovieClick = viewModel::onCreateMovieClick,
         onManageFavorite = viewModel::manageFavoriteBySwipe,
+        onSignInClick = onSignInClick,
         shouldAnimateMovie = viewModel::shouldAnimateItem,
         onMovieAnimated = viewModel::markItemAnimated,
         modifier = modifier
@@ -91,6 +98,7 @@ fun CatalogContent(
     onToggleCreatedMode: () -> Unit,
     onCreateMovieClick: () -> Unit,
     onManageFavorite: (Movie) -> Unit,
+    onSignInClick: () -> Unit,
     modifier: Modifier = Modifier,
     shouldAnimateMovie: (String) -> Boolean = { false },
     onMovieAnimated: (String) -> Unit = {}
@@ -176,7 +184,7 @@ fun CatalogContent(
                         start = 16.dp,
                         top = 16.dp,
                         end = 16.dp,
-                        bottom = 84.dp
+                        bottom = if (state.isAuthorized) 84.dp else 20.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -194,9 +202,11 @@ fun CatalogContent(
                             favoritesCount = state.favoriteIds.size,
                             createdCount = state.createdCount,
                             filterMode = state.filterMode,
+                            currentUser = state.currentUser,
                             onToggleFavoritesMode = onToggleFavoritesMode,
                             onToggleCreatedMode = onToggleCreatedMode,
-                            onCreateMovieClick = onCreateMovieClick
+                            onCreateMovieClick = onCreateMovieClick,
+                            onSignInClick = onSignInClick
                         )
                     }
 
@@ -249,6 +259,7 @@ fun CatalogContent(
                             }
                             SwipeableMovieCard(
                                 movie = movie,
+                                swipeEnabled = state.isAuthorized,
                                 compact = isLandscape,
                                 isFavorite = movie.id in state.favoriteIds,
                                 isFavoritesMode = state.isFavoritesMode || state.isCreatedMode,
@@ -332,18 +343,20 @@ fun CatalogContent(
             }
         }
 
-        FloatingActionButton(
-            onClick = onCreateMovieClick,
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = stringResource(R.string.add_movie_button)
-            )
+        if (state.isAuthorized) {
+            FloatingActionButton(
+                onClick = onCreateMovieClick,
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = stringResource(R.string.add_movie_button)
+                )
+            }
         }
     }
 }
@@ -357,9 +370,11 @@ private fun CatalogHeaderBar(
     favoritesCount: Int,
     createdCount: Int,
     filterMode: CatalogFilterMode,
+    currentUser: UserProfile?,
     onToggleFavoritesMode: () -> Unit,
     onToggleCreatedMode: () -> Unit,
     onCreateMovieClick: () -> Unit,
+    onSignInClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isFavorites = filterMode == CatalogFilterMode.FAVORITES
@@ -372,8 +387,92 @@ private fun CatalogHeaderBar(
         modifier = modifier
             .fillMaxWidth()
             .animateContentSize(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        if (currentUser == null) {
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.auth_required_message),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        onClick = onSignInClick,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.sign_in),
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+                }
+            }
+        } else {
+            Surface(
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    UserAvatarBadge(
+                        name = currentUser.name,
+                        avatarUrl = currentUser.avatarUrl,
+                        size = 40.dp
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = currentUser.name,
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = currentUser.email,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        currentUser.tokenRefreshedAt?.let { timestamp ->
+                            Text(
+                                text = stringResource(R.string.token_refreshed_badge, timestamp),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         Surface(
             color = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -400,79 +499,83 @@ private fun CatalogHeaderBar(
                     style = MaterialTheme.typography.labelLarge
                 )
 
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = onToggleFavoritesMode,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isFavorites) {
-                                MaterialTheme.colorScheme.secondaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.primary
-                            },
-                            contentColor = if (isFavorites) {
-                                MaterialTheme.colorScheme.onSecondaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onPrimary
-                            }
-                        ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                if (currentUser != null) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = stringResource(R.string.show_favorites, favoritesCount),
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    }
+                        Button(
+                            onClick = onToggleFavoritesMode,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isFavorites) {
+                                    MaterialTheme.colorScheme.secondaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                },
+                                contentColor = if (isFavorites) {
+                                    MaterialTheme.colorScheme.onSecondaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onPrimary
+                                }
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = stringResource(R.string.show_favorites, favoritesCount),
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
 
-                    Button(
-                        onClick = onToggleCreatedMode,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isCreated) {
-                                MaterialTheme.colorScheme.tertiaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.primary
-                            },
-                            contentColor = if (isCreated) {
-                                MaterialTheme.colorScheme.onTertiaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onPrimary
-                            }
-                        ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.my_movies_filter, createdCount),
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    }
+                        Button(
+                            onClick = onToggleCreatedMode,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isCreated) {
+                                    MaterialTheme.colorScheme.tertiaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                },
+                                contentColor = if (isCreated) {
+                                    MaterialTheme.colorScheme.onTertiaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onPrimary
+                                }
+                            ),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.my_movies_filter, createdCount),
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
 
-                    OutlinedButton(
-                        onClick = onCreateMovieClick,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.add_movie_button),
-                            style = MaterialTheme.typography.labelMedium
-                        )
+                        OutlinedButton(
+                            onClick = onCreateMovieClick,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.add_movie_button),
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
                     }
                 }
             }
         }
 
-        Text(
-            text = stringResource(R.string.swipe_hint, actionWord),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 4.dp)
-        )
+        if (currentUser != null) {
+            Text(
+                text = stringResource(R.string.swipe_hint, actionWord),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+        }
     }
 }
 
@@ -500,7 +603,7 @@ private val previewMovies = listOf(
 
 @Preview(showBackground = true, device = "spec:width=412dp,height=915dp,orientation=portrait")
 @Composable
-private fun CatalogPortraitPreview() {
+private fun CatalogAuthorizedPreview() {
     MovieCatalogTheme {
         CatalogContent(
             state = CatalogUiState(
@@ -508,7 +611,14 @@ private fun CatalogPortraitPreview() {
                 totalLoadedInBuffer = 8,
                 currentPage = 1,
                 favoriteIds = setOf("tt0468569"),
-                createdCount = 1
+                createdCount = 1,
+                currentUser = UserProfile(
+                    userId = "google_1",
+                    name = "Alisa Shevchenko",
+                    email = "alisa.shevchenko@gmail.com",
+                    avatarUrl = null,
+                    tokenRefreshedAt = "13:15:00"
+                )
             ),
             onRetryInitial = {},
             onLoadMore = {},
@@ -516,22 +626,22 @@ private fun CatalogPortraitPreview() {
             onToggleFavoritesMode = {},
             onToggleCreatedMode = {},
             onCreateMovieClick = {},
-            onManageFavorite = {}
+            onManageFavorite = {},
+            onSignInClick = {}
         )
     }
 }
 
-@Preview(showBackground = true, device = "spec:width=412dp,height=915dp,orientation=landscape")
+@Preview(showBackground = true, device = "spec:width=412dp,height=915dp,orientation=portrait")
 @Composable
-private fun CatalogLandscapePreview() {
+private fun CatalogLoggedOutPreview() {
     MovieCatalogTheme {
         CatalogContent(
             state = CatalogUiState(
-                movies = listOf(previewMovies.first()),
-                totalLoadedInBuffer = 1,
+                movies = listOf(previewMovies[1]),
+                totalLoadedInBuffer = 8,
                 currentPage = 1,
-                filterMode = CatalogFilterMode.CREATED,
-                createdCount = 1
+                currentUser = null
             ),
             onRetryInitial = {},
             onLoadMore = {},
@@ -539,7 +649,8 @@ private fun CatalogLandscapePreview() {
             onToggleFavoritesMode = {},
             onToggleCreatedMode = {},
             onCreateMovieClick = {},
-            onManageFavorite = {}
+            onManageFavorite = {},
+            onSignInClick = {}
         )
     }
 }

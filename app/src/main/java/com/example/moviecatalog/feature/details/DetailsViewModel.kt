@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.moviecatalog.MovieCatalogApp
 import com.example.moviecatalog.core.navigation.INavigationService
+import com.example.moviecatalog.data.auth.IAuthService
 import com.example.moviecatalog.data.repository.MovieRepository
 import com.example.moviecatalog.domain.model.Movie
 import kotlinx.coroutines.CancellationException
@@ -21,21 +22,31 @@ data class DetailsUiState(
     val movie: Movie? = null,
     val isLoading: Boolean = true,
     val errorMessage: String? = null,
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+    val isAuthorized: Boolean = false
 )
 
 class DetailsViewModel(
     private val movieId: String,
     private val repository: MovieRepository,
-    private val navigationService: INavigationService
+    private val navigationService: INavigationService,
+    private val authService: IAuthService
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
-        DetailsUiState(isFavorite = movieId in repository.favoriteIds.value)
+        DetailsUiState(
+            isFavorite = movieId in repository.favoriteIds.value,
+            isAuthorized = authService.currentUser.value != null
+        )
     )
     val uiState: StateFlow<DetailsUiState> = _uiState.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            authService.currentUser.collect { user ->
+                _uiState.update { it.copy(isAuthorized = user != null) }
+            }
+        }
         viewModelScope.launch {
             repository.favoriteIds.collect { ids ->
                 _uiState.update { it.copy(isFavorite = movieId in ids) }
@@ -57,14 +68,17 @@ class DetailsViewModel(
     }
 
     fun onRemoveFromFavorites() {
+        if (!_uiState.value.isAuthorized) return
         repository.removeFromFavorites(movieId)
     }
 
     fun onToggleFavorite() {
+        if (!_uiState.value.isAuthorized) return
         _uiState.value.movie?.let(repository::toggleFavorite)
     }
 
     fun onDeleteCreatedMovie() {
+        if (!_uiState.value.isAuthorized) return
         viewModelScope.launch {
             repository.deleteCreatedMovie(movieId)
             navigationService.navigateBack()
@@ -106,7 +120,8 @@ class DetailsViewModel(
                 DetailsViewModel(
                     movieId = movieId,
                     repository = app.movieRepository,
-                    navigationService = app.navigationService
+                    navigationService = app.navigationService,
+                    authService = app.authService
                 )
             }
         }

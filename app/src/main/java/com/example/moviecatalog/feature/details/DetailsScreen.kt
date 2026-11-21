@@ -218,10 +218,16 @@ fun DetailsContent(
                                 .width(130.dp)
                                 .height(195.dp)
                                 .posterFrame()
-                                .pointerInput(movie.id) {
-                                    detectTapGestures(
-                                        onDoubleTap = { onToggleFavorite() }
-                                    )
+                                .let { base ->
+                                    if (state.isAuthorized) {
+                                        base.pointerInput(movie.id) {
+                                            detectTapGestures(
+                                                onDoubleTap = { onToggleFavorite() }
+                                            )
+                                        }
+                                    } else {
+                                        base
+                                    }
                                 },
                             contentAlignment = Alignment.Center
                         ) {
@@ -368,11 +374,19 @@ fun DetailsContent(
                                 )
                             }
 
-                            Text(
-                                text = stringResource(R.string.double_tap_poster_hint),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            if (state.isAuthorized) {
+                                Text(
+                                    text = stringResource(R.string.double_tap_poster_hint),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            } else {
+                                Text(
+                                    text = stringResource(R.string.auth_locked_details_note),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -475,51 +489,53 @@ fun DetailsContent(
 
                 StaggeredReveal(itemKey = movie.id, delayMillis = 260) {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (state.isFavorite) {
-                            Button(
-                                onClick = onRemoveFromFavorites,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = null
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(stringResource(R.string.remove_from_favorites))
+                        if (state.isAuthorized) {
+                            if (state.isFavorite) {
+                                Button(
+                                    onClick = onRemoveFromFavorites,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(stringResource(R.string.remove_from_favorites))
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = onToggleFavorite,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = null
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(stringResource(R.string.add_to_favorites))
+                                }
                             }
-                        } else {
-                            OutlinedButton(
-                                onClick = onToggleFavorite,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Star,
-                                    contentDescription = null
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(stringResource(R.string.add_to_favorites))
-                            }
-                        }
 
-                        if (movie.isUserCreated) {
-                            Button(
-                                onClick = { showDeleteDialog = true },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error,
-                                    contentColor = MaterialTheme.colorScheme.onError
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = null
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(stringResource(R.string.delete_created_movie))
+                            if (movie.isUserCreated) {
+                                Button(
+                                    onClick = { showDeleteDialog = true },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(stringResource(R.string.delete_created_movie))
+                                }
                             }
                         }
 
@@ -608,6 +624,7 @@ private fun DetailsScreenPreview() {
             state = DetailsUiState(
                 isLoading = false,
                 isFavorite = true,
+                isAuthorized = true,
                 movie = Movie(
                     id = "user_1",
                     title = "Тіні забутих предків",
