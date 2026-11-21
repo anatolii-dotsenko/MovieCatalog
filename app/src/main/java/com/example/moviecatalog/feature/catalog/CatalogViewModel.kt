@@ -8,8 +8,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.moviecatalog.MovieCatalogApp
+import com.example.moviecatalog.R
 import com.example.moviecatalog.core.navigation.INavigationService
 import com.example.moviecatalog.data.auth.IAuthService
+import com.example.moviecatalog.data.local.ILocalizationService
 import com.example.moviecatalog.data.repository.MovieRepository
 import com.example.moviecatalog.domain.model.Movie
 import com.example.moviecatalog.domain.model.UserProfile
@@ -56,7 +58,8 @@ data class CatalogUiState(
 class CatalogViewModel(
     private val repository: MovieRepository,
     private val navigationService: INavigationService,
-    private val authService: IAuthService
+    private val authService: IAuthService,
+    private val localizationService: ILocalizationService
 ) : ViewModel() {
 
     private val titlesLoaded = mutableListOf<Movie>()
@@ -225,7 +228,8 @@ class CatalogViewModel(
                 _uiState.update {
                     it.copy(
                         isInitialLoading = false,
-                        errorMessage = e.localizedMessage ?: "Не вдалося завантажити каталог"
+                        errorMessage = e.localizedMessage
+                            ?: localizationService.getString(R.string.error_load_catalog)
                     )
                 }
             }
@@ -284,7 +288,8 @@ class CatalogViewModel(
             _uiState.update {
                 it.copy(
                     isLoadingMore = false,
-                    errorMessage = e.localizedMessage ?: "Не вдалося довантажити фільми"
+                    errorMessage = e.localizedMessage
+                        ?: localizationService.getString(R.string.error_load_more_movies)
                 )
             }
         }
@@ -337,7 +342,8 @@ class CatalogViewModel(
                 CatalogViewModel(
                     repository = app.movieRepository,
                     navigationService = app.navigationService,
-                    authService = app.authService
+                    authService = app.authService,
+                    localizationService = app.localizationService
                 )
             }
         }

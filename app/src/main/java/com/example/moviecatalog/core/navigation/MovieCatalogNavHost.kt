@@ -76,6 +76,7 @@ import com.example.moviecatalog.feature.catalog.CatalogScreen
 import com.example.moviecatalog.feature.create.CreateMovieScreen
 import com.example.moviecatalog.feature.details.DetailsScreen
 import com.example.moviecatalog.feature.genre.GenreMoviesScreen
+import com.example.moviecatalog.feature.profile.ProfileScreen
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -113,6 +114,11 @@ fun MovieCatalogNavHost(
                         launchSingleTop = true
                     }
                 }
+                NavigationCommand.ToProfile -> {
+                    navController.navigate(Routes.PROFILE) {
+                        launchSingleTop = true
+                    }
+                }
                 NavigationCommand.Back -> {
                     navController.popBackStack()
                 }
@@ -143,6 +149,7 @@ fun MovieCatalogNavHost(
         Routes.DETAILS -> stringResource(R.string.details_title)
         Routes.GENRE -> stringResource(R.string.genre_title_format, currentGenre)
         Routes.CREATE_MOVIE -> stringResource(R.string.create_movie_title)
+        Routes.PROFILE -> stringResource(R.string.profile_title)
         else -> stringResource(R.string.catalog_title)
     }
 
@@ -189,21 +196,30 @@ fun MovieCatalogNavHost(
                     } else {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier.padding(end = 6.dp)
                         ) {
-                            UserAvatarBadge(
-                                name = user.name,
-                                avatarUrl = user.avatarUrl,
-                                size = 30.dp
-                            )
-                            Text(
-                                text = user.name.substringBefore(' '),
-                                style = MaterialTheme.typography.labelLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.widthIn(max = 86.dp)
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier
+                                    .clip(MaterialTheme.shapes.small)
+                                    .clickable { navigationService.navigateToProfile() }
+                                    .padding(horizontal = 4.dp, vertical = 4.dp)
+                            ) {
+                                UserAvatarBadge(
+                                    name = user.name,
+                                    avatarUrl = user.avatarUrl,
+                                    size = 30.dp
+                                )
+                                Text(
+                                    text = user.name.substringBefore(' '),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.widthIn(max = 86.dp)
+                                )
+                            }
                             TextButton(
                                 onClick = {
                                     scope.launch { authService.signOut() }
@@ -249,7 +265,10 @@ fun MovieCatalogNavHost(
             }
         ) {
             composable(Routes.CATALOG) {
-                CatalogScreen(onSignInClick = { showSignInDialog = true })
+                CatalogScreen(
+                    onSignInClick = { showSignInDialog = true },
+                    onProfileClick = { navigationService.navigateToProfile() }
+                )
             }
             composable(
                 route = Routes.DETAILS,
@@ -267,6 +286,9 @@ fun MovieCatalogNavHost(
             }
             composable(Routes.CREATE_MOVIE) {
                 CreateMovieScreen()
+            }
+            composable(Routes.PROFILE) {
+                ProfileScreen()
             }
         }
     }

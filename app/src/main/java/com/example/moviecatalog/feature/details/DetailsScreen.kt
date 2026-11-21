@@ -128,7 +128,7 @@ fun DetailsContent(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = state.errorMessage ?: "Дані фільму відсутні",
+                        text = state.errorMessage ?: stringResource(R.string.movie_data_missing),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.error,
                         textAlign = TextAlign.Center
@@ -137,7 +137,7 @@ fun DetailsContent(
                     Button(onClick = onRetry) {
                         Icon(imageVector = Icons.Default.Refresh, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Спробувати знову")
+                        Text(stringResource(R.string.retry_button))
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedButton(onClick = onBackClick) {

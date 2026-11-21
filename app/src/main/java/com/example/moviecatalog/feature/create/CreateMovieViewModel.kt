@@ -8,7 +8,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.moviecatalog.MovieCatalogApp
+import com.example.moviecatalog.R
 import com.example.moviecatalog.core.navigation.INavigationService
+import com.example.moviecatalog.data.local.ILocalizationService
 import com.example.moviecatalog.data.repository.MovieRepository
 import com.example.moviecatalog.domain.model.MovieCreateDto
 import kotlinx.coroutines.CancellationException
@@ -32,7 +34,8 @@ data class CreateMovieUiState(
 
 class CreateMovieViewModel(
     private val repository: MovieRepository,
-    private val navigationService: INavigationService
+    private val navigationService: INavigationService,
+    private val localizationService: ILocalizationService
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CreateMovieUiState())
@@ -93,25 +96,41 @@ class CreateMovieViewModel(
         if (currentState.isSaving) return
 
         val dto = currentState.dto
-        val titleError = if (dto.title.isBlank()) "Введіть назву фільму" else null
+        val titleError = if (dto.title.isBlank()) {
+            localizationService.getString(R.string.error_title_required)
+        } else {
+            null
+        }
 
         val yearError = if (dto.yearText.isNotBlank()) {
             val year = dto.parsedYear()
-            if (year == null || year !in 1888..2100) "Вкажіть рік від 1888 до 2100" else null
+            if (year == null || year !in 1888..2100) {
+                localizationService.getString(R.string.error_year_range)
+            } else {
+                null
+            }
         } else {
             null
         }
 
         val ratingError = if (dto.ratingText.isNotBlank()) {
             val rating = dto.parsedRating()
-            if (rating == null || rating !in 0.0..10.0) "Рейтинг має бути від 0.0 до 10.0" else null
+            if (rating == null || rating !in 0.0..10.0) {
+                localizationService.getString(R.string.error_rating_range)
+            } else {
+                null
+            }
         } else {
             null
         }
 
         val runtimeError = if (dto.runtimeText.isNotBlank()) {
             val runtime = dto.parsedRuntime()
-            if (runtime == null || runtime <= 0) "Вкажіть коректну тривалість (хв)" else null
+            if (runtime == null || runtime <= 0) {
+                localizationService.getString(R.string.error_runtime_positive)
+            } else {
+                null
+            }
         } else {
             null
         }
@@ -151,7 +170,8 @@ class CreateMovieViewModel(
                 val app = this[APPLICATION_KEY] as MovieCatalogApp
                 CreateMovieViewModel(
                     repository = app.movieRepository,
-                    navigationService = app.navigationService
+                    navigationService = app.navigationService,
+                    localizationService = app.localizationService
                 )
             }
         }

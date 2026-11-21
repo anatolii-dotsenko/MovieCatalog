@@ -7,6 +7,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -48,6 +50,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -67,6 +70,7 @@ import com.example.moviecatalog.ui.theme.MovieCatalogTheme
 @Composable
 fun CatalogScreen(
     onSignInClick: () -> Unit,
+    onProfileClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: CatalogViewModel = viewModel(factory = CatalogViewModel.Factory)
 ) {
@@ -82,6 +86,7 @@ fun CatalogScreen(
         onCreateMovieClick = viewModel::onCreateMovieClick,
         onManageFavorite = viewModel::manageFavoriteBySwipe,
         onSignInClick = onSignInClick,
+        onProfileClick = onProfileClick,
         shouldAnimateMovie = viewModel::shouldAnimateItem,
         onMovieAnimated = viewModel::markItemAnimated,
         modifier = modifier
@@ -99,6 +104,7 @@ fun CatalogContent(
     onCreateMovieClick: () -> Unit,
     onManageFavorite: (Movie) -> Unit,
     onSignInClick: () -> Unit,
+    onProfileClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     shouldAnimateMovie: (String) -> Boolean = { false },
     onMovieAnimated: (String) -> Unit = {}
@@ -145,7 +151,7 @@ fun CatalogContent(
                         CircularProgressIndicator()
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Завантаження фільмів...",
+                            text = stringResource(R.string.loading_movies),
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -170,7 +176,7 @@ fun CatalogContent(
                         Button(onClick = onRetryInitial) {
                             Icon(imageVector = Icons.Default.Refresh, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Спробувати знову")
+                            Text(stringResource(R.string.retry_button))
                         }
                     }
                 }
@@ -206,7 +212,8 @@ fun CatalogContent(
                             onToggleFavoritesMode = onToggleFavoritesMode,
                             onToggleCreatedMode = onToggleCreatedMode,
                             onCreateMovieClick = onCreateMovieClick,
-                            onSignInClick = onSignInClick
+                            onSignInClick = onSignInClick,
+                            onProfileClick = onProfileClick
                         )
                     }
 
@@ -302,7 +309,7 @@ fun CatalogContent(
                                         )
                                         Spacer(modifier = Modifier.width(12.dp))
                                         Text(
-                                            text = "Довантаження фільмів...",
+                                            text = stringResource(R.string.loading_more_movies),
                                             style = MaterialTheme.typography.bodyMedium
                                         )
                                     }
@@ -322,12 +329,12 @@ fun CatalogContent(
                                         )
                                         Spacer(modifier = Modifier.height(6.dp))
                                         OutlinedButton(onClick = onLoadMore) {
-                                            Text("Повторити довантаження")
+                                            Text(stringResource(R.string.retry_load_more))
                                         }
                                     }
                                 } else if (!state.isLoadingMore && state.endReached && state.movies.isNotEmpty()) {
                                     Text(
-                                        text = "Усі доступні фільми завантажено",
+                                        text = stringResource(R.string.all_movies_loaded),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         textAlign = TextAlign.Center,
@@ -375,6 +382,7 @@ private fun CatalogHeaderBar(
     onToggleCreatedMode: () -> Unit,
     onCreateMovieClick: () -> Unit,
     onSignInClick: () -> Unit,
+    onProfileClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isFavorites = filterMode == CatalogFilterMode.FAVORITES
@@ -425,7 +433,9 @@ private fun CatalogHeaderBar(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = stringResource(R.string.sign_in),
-                            style = MaterialTheme.typography.labelMedium
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -435,7 +445,10 @@ private fun CatalogHeaderBar(
                 color = MaterialTheme.colorScheme.tertiaryContainer,
                 contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                 shape = MaterialTheme.shapes.small,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.small)
+                    .clickable(onClick = onProfileClick)
             ) {
                 Row(
                     modifier = Modifier
@@ -465,7 +478,32 @@ private fun CatalogHeaderBar(
                         currentUser.tokenRefreshedAt?.let { timestamp ->
                             Text(
                                 text = stringResource(R.string.token_refreshed_badge, timestamp),
-                                style = MaterialTheme.typography.labelSmall
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        shape = MaterialTheme.shapes.extraSmall
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = stringResource(R.string.profile_open_hint),
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -528,7 +566,9 @@ private fun CatalogHeaderBar(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = stringResource(R.string.show_favorites, favoritesCount),
-                                style = MaterialTheme.typography.labelMedium
+                                style = MaterialTheme.typography.labelMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 
@@ -550,7 +590,9 @@ private fun CatalogHeaderBar(
                         ) {
                             Text(
                                 text = stringResource(R.string.my_movies_filter, createdCount),
-                                style = MaterialTheme.typography.labelMedium
+                                style = MaterialTheme.typography.labelMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 
@@ -560,7 +602,9 @@ private fun CatalogHeaderBar(
                         ) {
                             Text(
                                 text = stringResource(R.string.add_movie_button),
-                                style = MaterialTheme.typography.labelMedium
+                                style = MaterialTheme.typography.labelMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }

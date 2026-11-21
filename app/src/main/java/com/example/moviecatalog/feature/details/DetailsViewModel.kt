@@ -7,8 +7,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.moviecatalog.MovieCatalogApp
+import com.example.moviecatalog.R
 import com.example.moviecatalog.core.navigation.INavigationService
 import com.example.moviecatalog.data.auth.IAuthService
+import com.example.moviecatalog.data.local.ILocalizationService
 import com.example.moviecatalog.data.repository.MovieRepository
 import com.example.moviecatalog.domain.model.Movie
 import kotlinx.coroutines.CancellationException
@@ -30,7 +32,8 @@ class DetailsViewModel(
     private val movieId: String,
     private val repository: MovieRepository,
     private val navigationService: INavigationService,
-    private val authService: IAuthService
+    private val authService: IAuthService,
+    private val localizationService: ILocalizationService
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -96,7 +99,7 @@ class DetailsViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = "Не вдалося знайти інформацію про фільм"
+                            errorMessage = localizationService.getString(R.string.error_movie_not_found)
                         )
                     }
                 }
@@ -106,7 +109,8 @@ class DetailsViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        errorMessage = e.localizedMessage ?: "Помилка завантаження деталей"
+                        errorMessage = e.localizedMessage
+                            ?: localizationService.getString(R.string.error_load_details)
                     )
                 }
             }
@@ -121,7 +125,8 @@ class DetailsViewModel(
                     movieId = movieId,
                     repository = app.movieRepository,
                     navigationService = app.navigationService,
-                    authService = app.authService
+                    authService = app.authService,
+                    localizationService = app.localizationService
                 )
             }
         }
