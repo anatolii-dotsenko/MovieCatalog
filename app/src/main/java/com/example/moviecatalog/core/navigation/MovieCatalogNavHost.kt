@@ -70,6 +70,7 @@ import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.example.moviecatalog.MovieCatalogApp
 import com.example.moviecatalog.R
+import com.example.moviecatalog.data.auth.AuthService
 import com.example.moviecatalog.data.auth.GoogleAccountOption
 import com.example.moviecatalog.feature.catalog.CatalogScreen
 import com.example.moviecatalog.feature.create.CreateMovieScreen
@@ -334,7 +335,7 @@ private fun GoogleSignInDialog(
     onOpenGoogleBrowser: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var clientId by remember { mutableStateOf("") }
+    var clientId by remember { mutableStateOf(AuthService.DEFAULT_GOOGLE_CLIENT_ID) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

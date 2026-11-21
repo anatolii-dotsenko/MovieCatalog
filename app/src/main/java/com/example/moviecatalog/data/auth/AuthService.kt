@@ -84,7 +84,7 @@ class AuthService(
     )
 
     override fun buildAuthorizationUrl(clientId: String): String {
-        val trimmedClientId = clientId.trim().ifBlank { DEFAULT_DEMO_CLIENT_ID }
+        val trimmedClientId = clientId.trim().ifBlank { DEFAULT_GOOGLE_CLIENT_ID }
         val verifier = generateCodeVerifier()
         val challenge = computeCodeChallenge(verifier)
         pendingCodeVerifier = verifier
@@ -116,7 +116,8 @@ class AuthService(
     }
 
     override suspend fun handleOAuthRedirect(uri: Uri) {
-        if (uri.scheme != PACKAGE_SCHEME) return
+        val isSupportedScheme = uri.scheme == PACKAGE_SCHEME || uri.scheme == REVERSE_CLIENT_SCHEME
+        if (!isSupportedScheme) return
         val isOAuthPath = uri.path == "/oauth2redirect" || uri.host == "oauth2redirect"
         if (!isOAuthPath) return
 
@@ -129,7 +130,7 @@ class AuthService(
         val code = uri.getQueryParameter("code")
         if (code.isNullOrBlank()) return
 
-        val clientId = pendingClientId ?: preferencesStorage.get(KEY_OAUTH_CLIENT_ID) ?: DEFAULT_DEMO_CLIENT_ID
+        val clientId = pendingClientId ?: preferencesStorage.get(KEY_OAUTH_CLIENT_ID) ?: DEFAULT_GOOGLE_CLIENT_ID
         val verifier = pendingCodeVerifier
         pendingCodeVerifier = null
 
@@ -408,23 +409,28 @@ class AuthService(
         val refreshToken: String?
     )
 
-    private companion object {
-        const val PACKAGE_SCHEME = "com.example.moviecatalog"
-        const val REDIRECT_URI = "$PACKAGE_SCHEME:/oauth2redirect"
-        const val GOOGLE_AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
-        const val GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
-        const val DEFAULT_DEMO_CLIENT_ID = "local_oauth_client"
+    companion object {
+        const val DEFAULT_GOOGLE_CLIENT_ID =
+            "733706342085-t05v04fm52knul39qtjb53hrnhek84pp.apps.googleusercontent.com"
 
-        const val KEY_ID_TOKEN = "id_token"
-        const val KEY_ACCESS_TOKEN = "access_token"
-        const val KEY_REFRESH_TOKEN = "refresh_token"
-        const val KEY_USER_ID = "user_id"
-        const val KEY_CLIENT_ID = "client_id"
+        private const val PACKAGE_SCHEME = "com.example.moviecatalog"
+        private const val REVERSE_CLIENT_SCHEME =
+            "com.googleusercontent.apps.733706342085-t05v04fm52knul39qtjb53hrnhek84pp"
+        private const val REDIRECT_URI = "$PACKAGE_SCHEME:/oauth2redirect"
+        private const val GOOGLE_AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
+        private const val GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
+        private const val DEFAULT_DEMO_CLIENT_ID = "local_oauth_client"
 
-        const val KEY_USER_NAME = "user_name"
-        const val KEY_USER_EMAIL = "user_email"
-        const val KEY_USER_AVATAR = "user_avatar"
-        const val KEY_OAUTH_CLIENT_ID = "oauth_client_id"
-        const val KEY_TOKEN_REFRESHED_AT = "token_refreshed_at"
+        private const val KEY_ID_TOKEN = "id_token"
+        private const val KEY_ACCESS_TOKEN = "access_token"
+        private const val KEY_REFRESH_TOKEN = "refresh_token"
+        private const val KEY_USER_ID = "user_id"
+        private const val KEY_CLIENT_ID = "client_id"
+
+        private const val KEY_USER_NAME = "user_name"
+        private const val KEY_USER_EMAIL = "user_email"
+        private const val KEY_USER_AVATAR = "user_avatar"
+        private const val KEY_OAUTH_CLIENT_ID = "oauth_client_id"
+        private const val KEY_TOKEN_REFRESHED_AT = "token_refreshed_at"
     }
 }

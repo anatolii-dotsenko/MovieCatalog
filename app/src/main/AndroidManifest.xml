@@ -36,6 +36,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data android:scheme="com.example.moviecatalog" />
+                <data android:scheme="com.googleusercontent.apps.733706342085-t05v04fm52knul39qtjb53hrnhek84pp" />
             </intent-filter>
         </activity>
     </application>
